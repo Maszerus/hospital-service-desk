@@ -1,14 +1,14 @@
 (() => {
-  const username = document.querySelector('input[name="username"]');
+  const usernameInput = document.querySelector('input[name="username"]');
   const storageKey = 'hsd-username';
 
   try {
-    if (username) username.value = localStorage.getItem(storageKey) || '';
+    if (usernameInput) usernameInput.value = localStorage.getItem(storageKey) || '';
   } catch {}
 
-  username?.form.addEventListener('submit', () => {
+  usernameInput?.form.addEventListener('submit', () => {
     try {
-      localStorage.setItem(storageKey, username.value.trim());
+      localStorage.setItem(storageKey, usernameInput.value.trim());
     } catch {}
   });
 

@@ -1,37 +1,57 @@
-const $ = (selector) => document.querySelector(selector);
-const esc = (value) =>
-  String(value ?? '').replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
-  );
+const select = (selector) => document.querySelector(selector);
+const htmlEntities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const escapeHtml = (value) =>
+  String(value ?? '').replace(/[&<>"']/g, (character) => htmlEntities[character]);
 const revision = 'P7-persistent-profile-v3';
-let info,
-  busy = false,
-  evidence = {};
-try {
-  const previous = JSON.parse(sessionStorage.getItem('hsd-evidence') || '{}');
-  if (previous._revision === revision) evidence = previous;
-} catch {}
+let testInfo;
+let testsRunning = false;
+const evidence = readEvidence();
 
-async function request(url, options) {
+function readEvidence() {
+  try {
+    const previous = JSON.parse(sessionStorage.getItem('hsd-evidence') || '{}');
+    if (previous._revision === revision) return previous;
+  } catch {}
+
+  return {};
+}
+
+function persistEvidence() {
+  try {
+    sessionStorage.setItem('hsd-evidence', JSON.stringify(evidence));
+  } catch {}
+}
+
+function getEvidenceKey(testId) {
+  return testId === 'T1' || testId === 'T2' ? 'XSS' : testId;
+}
+
+async function requestJson(url, options) {
   const response = await fetch(url, options);
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
   return response.json();
 }
-async function getInfo() {
-  info = await request('/lab/test-info', { cache: 'no-store' });
-  if (info.mode !== document.body.dataset.labMode)
+
+async function getTestInfo() {
+  testInfo = await requestJson('/lab/test-info', { cache: 'no-store' });
+  if (testInfo.mode !== document.body.dataset.labMode)
     throw new Error(
       'Tryb serwera zmieniono na ' +
-        info.mode +
+        testInfo.mode +
         ' (np. w Postmanie). Odśwież stronę, żeby uruchomić właściwy scenariusz.',
     );
-  return info;
+  return testInfo;
 }
-function codeBlock(label, value) {
-  return `<div class="code-box"><b>${esc(label)}</b><pre>${esc(value)}</pre></div>`;
+
+function renderCodeBlock(label, value) {
+  return `
+    <div class="code-box">
+      <b>${escapeHtml(label)}</b>
+      <pre>${escapeHtml(value)}</pre>
+    </div>`;
 }
-function compare() {
+
+function renderComparison() {
   const labels = {
     XSS: 'XSS · wykonanie kodu',
     T3: 'CSRF · brak tokenu',
@@ -39,95 +59,129 @@ function compare() {
     T5: 'Legalna zmiana · poprawny token',
     T6: 'CSP i cookie sesji',
   };
-  $('#comparison-results').innerHTML = `<div class="table-scroll">
-<table>
-<thead>
-<tr>
-<th>Scenariusz</th>
-<th>Przed ochroną</th>
-<th>Po zabezpieczeniu</th>
-</tr>
-</thead>
-<tbody>${Object.entries(labels)
-    .map(
-      ([key, label]) =>
-        `<tr><th>${label}</th>${['vulnerable', 'secure'].map((mode) => `<td>${evidence[mode]?.[key] ? esc(evidence[mode][key].summary) : '<span class="muted">Nie wykonano</span>'}</td>`).join('')}</tr>`,
-    )
-    .join('')}</tbody>
-</table>
-</div>`;
+  const rows = Object.entries(labels).map(([key, label]) => {
+    const cells = ['vulnerable', 'secure'].map((mode) => {
+      const result = evidence[mode]?.[key];
+      const summary = result
+        ? escapeHtml(result.summary)
+        : '<span class="muted">Nie wykonano</span>';
+
+      return `<td>${summary}</td>`;
+    });
+
+    return `
+      <tr>
+        <th>${label}</th>
+        ${cells.join('')}
+      </tr>`;
+  });
+
+  select('#comparison-results').innerHTML = `
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Scenariusz</th>
+            <th>Przed ochroną</th>
+            <th>Po zabezpieczeniu</th>
+          </tr>
+        </thead>
+        <tbody>${rows.join('')}</tbody>
+      </table>
+    </div>`;
 }
-function save(id, data) {
-  const key = id === 'T1' || id === 'T2' ? 'XSS' : id;
+
+function saveEvidence(id, data) {
+  const key = getEvidenceKey(id);
   evidence._revision = revision;
-  evidence[info.mode] ??= {};
+  evidence[testInfo.mode] ??= {};
   // Historia zawiera dane i obserwacje, bez tokenu CSRF i cookie sesji.
   const { visual, ...result } = data;
-  evidence[info.mode][key] = {
+  evidence[testInfo.mode][key] = {
     ...result,
     id,
-    mode: info.mode,
+    mode: testInfo.mode,
     timestamp: new Date().toISOString(),
   };
-  try {
-    sessionStorage.setItem('hsd-evidence', JSON.stringify(evidence));
-  } catch {}
-  compare();
+  persistEvidence();
+  renderComparison();
 }
-function render(id, data) {
-  const el = $(`#result-${id}`);
-  el.querySelector('.running')?.remove();
-  const preview = el.querySelector('.preview');
+
+function renderTestResult(id, data) {
+  const resultContainer = select(`#result-${id}`);
+  resultContainer.querySelector('.running')?.remove();
+  const preview = resultContainer.querySelector('.preview');
+  let resultClass = 'fail';
+  if (data.pass) resultClass = testInfo.mode === 'vulnerable' ? 'exposed' : 'pass';
+
   const outcome = document.createElement('div');
   outcome.className = 'outcome';
-  outcome.innerHTML = `<h3>Rzeczywisty wynik tego uruchomienia</h3><div class="result-banner ${data.pass ? (info.mode === 'vulnerable' ? 'exposed' : 'pass') : 'fail'}"><b>${data.pass ? '✓ Scenariusz potwierdzony' : '✕ Wynik niezgodny'}</b><span>${esc(data.summary)}</span></div>${data.visual || ''}`;
-  el.insertBefore(outcome, preview || el.firstChild);
-  el.insertAdjacentHTML(
+  outcome.innerHTML = `
+    <h3>Rzeczywisty wynik tego uruchomienia</h3>
+    <div class="result-banner ${resultClass}">
+      <b>${data.pass ? '✓ Scenariusz potwierdzony' : '✕ Wynik niezgodny'}</b>
+      <span>${escapeHtml(data.summary)}</span>
+    </div>
+    ${data.visual || ''}`;
+  resultContainer.insertBefore(outcome, preview || resultContainer.firstChild);
+  resultContainer.insertAdjacentHTML(
     'beforeend',
     `<div class="test-explanation">
-<p class="interpretation">${esc(data.why)}</p>
-<h3>Dokumentacja tego uruchomienia</h3>
-<p class="muted">Żądanie i odpowiedź poniżej pochodzą z tej próby. Cookie i poprawny token sesji pomijamy w eksporcie; Postman pobiera je po swoim logowaniu.</p>
-<div class="detail-grid">${codeBlock('Wysłane żądanie / opis', data.request)}${codeBlock('Odpowiedź HTTP / odczytana obserwacja', data.response)}</div>
-<p class="muted">Czas próby: ${esc(new Date().toLocaleString('pl-PL'))} · tryb ${esc(info.mode)}</p>
-</div>`,
+      <p class="interpretation">${escapeHtml(data.why)}</p>
+      <h3>Dokumentacja tego uruchomienia</h3>
+      <p class="muted">
+        Żądanie i odpowiedź poniżej pochodzą z tej próby. Cookie i poprawny token sesji pomijamy
+        w eksporcie; Postman pobiera je po swoim logowaniu.
+      </p>
+      <div class="detail-grid">
+        ${renderCodeBlock('Wysłane żądanie / opis', data.request)}
+        ${renderCodeBlock('Odpowiedź HTTP / odczytana obserwacja', data.response)}
+      </div>
+      <p class="muted">
+        Czas próby: ${escapeHtml(new Date().toLocaleString('pl-PL'))} · tryb ${escapeHtml(testInfo.mode)}
+      </p>
+    </div>`,
   );
-  save(id, data);
+  saveEvidence(id, data);
   return data.pass;
 }
-function restoreMain() {
-  $('#app-header').classList.remove('xss-header');
-  $('#xss-page-impact').hidden = true;
-  $('#xss-page-impact').textContent = '';
-  $('#xss-reset-area').hidden = true;
+
+function resetXssEffect() {
+  select('#app-header').classList.remove('xss-header');
+  select('#xss-page-impact').hidden = true;
+  select('#xss-page-impact').textContent = '';
+  select('#xss-reset-area').hidden = true;
 }
-$('#reset-xss')?.addEventListener('click', restoreMain);
-function mainSnapshot() {
+
+function getMainPageSnapshot() {
   return {
-    headerClass: $('#app-header').className,
-    bannerVisible: !$('#xss-page-impact').hidden,
-    bannerText: $('#xss-page-impact').textContent,
+    headerClass: select('#app-header').className,
+    bannerVisible: !select('#xss-page-impact').hidden,
+    bannerText: select('#xss-page-impact').textContent,
   };
 }
-function frameSnapshot(frame, changes) {
-  const doc = frame.contentDocument;
-  if (!doc?.querySelector('#payload'))
+
+function getFrameSnapshot(frame, changes) {
+  const frameDocument = frame.contentDocument;
+  if (!frameDocument?.querySelector('#payload'))
     throw new Error('Brak oczekiwanej strony podglądu; sesja mogła wygasnąć.');
   return Object.fromEntries(
     changes.map((change) => [
       change.selector,
       change.selector === 'body'
-        ? doc.body.className
-        : doc.querySelector(change.selector)?.textContent,
+        ? frameDocument.body.className
+        : frameDocument.querySelector(change.selector)?.textContent,
     ]),
   );
 }
-function fitFrame(frame) {
+
+function resizePreviewFrame(frame) {
   if (frame.contentDocument?.body)
     frame.style.height =
       Math.ceil(frame.contentDocument.body.getBoundingClientRect().height) + 24 + 'px';
 }
-async function loadFrame(frame, url) {
+
+async function loadPreviewFrame(frame, url) {
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error('Podgląd nie załadował się w ciągu 8 sekund.')),
@@ -135,17 +189,19 @@ async function loadFrame(frame, url) {
     );
     frame.onload = () => {
       clearTimeout(timeout);
-      fitFrame(frame);
+      resizePreviewFrame(frame);
       resolve();
     };
     frame.src = url;
   });
 }
-async function xss(id) {
-  const i = await getInfo();
-  const spec = await request('/lab/xss-info');
-  restoreMain();
-  const beforeMain = mainSnapshot();
+
+async function runXssTest(id) {
+  const activeInfo = await getTestInfo();
+  const spec = await requestJson('/lab/xss-info');
+  resetXssEffect();
+  const beforeMain = getMainPageSnapshot();
+
   const storedResponse = await fetch('/lab/xss-probe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -154,38 +210,53 @@ async function xss(id) {
   const stored = await storedResponse.json();
   if (!storedResponse.ok || stored.payload !== spec.payload)
     throw new Error('Serwer nie potwierdził zapisu dokładnie tego payloadu.');
+
   const htmlResponse = await fetch(stored.frameUrl, { cache: 'no-store' });
   const rawHtml = await htmlResponse.text();
   if (htmlResponse.status !== 200)
     throw new Error('Odczyt opisu HTML: HTTP ' + htmlResponse.status);
-  const el = $(`#result-${id}`);
-  el.innerHTML =
-    '<p class="running">Opis zapisany i odczytany z SQLite. Ładowanie strony przed i po wstawieniu opisu…</p><div class="preview paired-preview"><section><h3>PRZED · bez wstawionego payloadu</h3><iframe data-frame="before" title="Strona przed wstawieniem payloadu" class="probe-frame"></iframe></section><section><h3>PO · opis z bazy wstawiony do HTML</h3><iframe data-frame="after" title="Strona po odczycie zapisanego payloadu" class="probe-frame"></iframe></section></div>';
-  const beforeFrame = el.querySelector('[data-frame=before]');
-  const frame = el.querySelector('[data-frame=after]');
+  const resultContainer = select(`#result-${id}`);
+  resultContainer.innerHTML = `
+    <p class="running">
+      Opis zapisany i odczytany z SQLite. Ładowanie strony przed i po wstawieniu opisu…
+    </p>
+    <div class="preview paired-preview">
+      <section>
+        <h3>PRZED · bez wstawionego payloadu</h3>
+        <iframe data-frame="before" title="Strona przed wstawieniem payloadu" class="probe-frame"></iframe>
+      </section>
+      <section>
+        <h3>PO · opis z bazy wstawiony do HTML</h3>
+        <iframe data-frame="after" title="Strona po odczycie zapisanego payloadu" class="probe-frame"></iframe>
+      </section>
+    </div>`;
+  const beforeFrame = resultContainer.querySelector('[data-frame=before]');
+  const afterFrame = resultContainer.querySelector('[data-frame=after]');
   let executed = false;
-  const handler = (event) => {
+  const handleExecution = (event) => {
     if (
-      event.source === frame.contentWindow &&
+      event.source === afterFrame.contentWindow &&
       event.origin === location.origin &&
       event.data === 'XSS_EXECUTED'
     )
       executed = true;
   };
-  window.addEventListener('message', handler);
+  window.addEventListener('message', handleExecution);
+
   try {
-    await loadFrame(beforeFrame, spec.baselineUrl);
-    const before = frameSnapshot(beforeFrame, spec.changes);
-    await loadFrame(frame, stored.frameUrl + '?ts=' + Date.now());
+    await loadPreviewFrame(beforeFrame, spec.baselineUrl);
+    const before = getFrameSnapshot(beforeFrame, spec.changes);
+    await loadPreviewFrame(afterFrame, stored.frameUrl + '?ts=' + Date.now());
     await new Promise((resolve) => setTimeout(resolve, 400));
-    const observed = frameSnapshot(frame, spec.changes);
-    const afterMain = mainSnapshot();
-    const doc = frame.contentDocument;
-    fitFrame(frame);
+    const observed = getFrameSnapshot(afterFrame, spec.changes);
+    const afterMain = getMainPageSnapshot();
+    const frameDocument = afterFrame.contentDocument;
+    resizePreviewFrame(afterFrame);
+
     const textOnly =
-      doc.querySelector('#payload').textContent === stored.payload &&
-      !doc.querySelector('#payload img');
-    const secure = i.mode === 'secure';
+      frameDocument.querySelector('#payload').textContent === stored.payload &&
+      !frameDocument.querySelector('#payload img');
+    const secure = activeInfo.mode === 'secure';
     const changesMatch = spec.changes.every(
       (change) => observed[change.selector] === (secure ? before[change.selector] : change.after),
     );
@@ -194,7 +265,8 @@ async function xss(id) {
       : afterMain.headerClass.includes('xss-header') && afterMain.bannerVisible;
     const pass =
       stored.stored && changesMatch && mainMatch && (secure ? !executed && textOnly : executed);
-    $('#xss-reset-area').hidden = !executed;
+    select('#xss-reset-area').hidden = !executed;
+
     const rows = spec.changes.map((change) => ({
       element: change.label,
       selector: change.selector,
@@ -213,14 +285,72 @@ async function xss(id) {
       before: beforeMain.bannerVisible ? beforeMain.bannerText : 'Ukryty',
       observed: afterMain.bannerVisible ? afterMain.bannerText : 'Ukryty',
     });
-    const visual = `<div class="trace"><h3>Skąd pochodzi wykonany kod?</h3><ol><li><b>Wysłano:</b> POST /lab/xss-probe, pole description (dokładny payload z instrukcji powyżej).</li><li><b>Serwer zapisał i odczytał:</b> SQLite → tabela <code>${esc(stored.storage.table)}</code> → user_id=${esc(stored.storage.record.user_id)}. Odczytany opis jest identyczny z wysłanym: <b>${stored.payload === spec.payload ? 'TAK' : 'NIE'}</b>.</li><li><b>Przeglądarka dostała:</b> GET /lab/xss-frame, HTTP ${htmlResponse.status}. Aktywne renderowanie: <code>${esc(spec.activeRenderer)}</code>.</li><li><b>Zaobserwowano:</b> wykonanie onerror: <b>${executed ? 'TAK' : 'NIE'}</b>; payload jako tekst: <b>${textOnly ? 'TAK' : 'NIE'}</b>.</li></ol></div><h3>Rzeczywiste zmiany odczytane z elementów strony</h3><div class="table-scroll"><table class="dom-observations"><thead><tr><th>Element / selektor</th><th>Przed wstawieniem opisu</th><th>Po wstawieniu opisu</th></tr></thead><tbody>${rows.map((row) => `<tr class="${row.before !== row.observed ? 'changed-row' : ''}"><th>${esc(row.element)}<small>${esc(row.selector)}</small></th><td>${esc(row.before)}</td><td>${esc(row.observed)}</td></tr>`).join('')}</tbody></table></div><p class="expected"><b>Zmiana interfejsu głównej strony:</b> ${secure ? 'Nie wystąpiła. Nagłówek i komunikat pozostały bez zmian.' : 'Nagłówek na górze strony jest teraz pomarańczowy. Bezpośrednio pod nagłówkiem pojawił się komunikat wstawiony przez payload.'} Podglądy poniżej pokazują obie wersje tej samej strony demo.</p>`;
-    return render(id, {
+    const observationRows = rows.map(
+      (row) => `
+        <tr class="${row.before !== row.observed ? 'changed-row' : ''}">
+          <th>${escapeHtml(row.element)}<small>${escapeHtml(row.selector)}</small></th>
+          <td>${escapeHtml(row.before)}</td>
+          <td>${escapeHtml(row.observed)}</td>
+        </tr>`,
+    );
+    const pageImpact = secure
+      ? 'Nie wystąpiła. Nagłówek i komunikat pozostały bez zmian.'
+      : 'Nagłówek na górze strony jest teraz pomarańczowy. ' +
+        'Bezpośrednio pod nagłówkiem pojawił się komunikat wstawiony przez payload.';
+    const visual = `
+      <div class="trace">
+        <h3>Skąd pochodzi wykonany kod?</h3>
+        <ol>
+          <li>
+            <b>Wysłano:</b> POST /lab/xss-probe, pole description
+            (dokładny payload z instrukcji powyżej).
+          </li>
+          <li>
+            <b>Serwer zapisał i odczytał:</b> SQLite → tabela
+            <code>${escapeHtml(stored.storage.table)}</code> → user_id=${escapeHtml(stored.storage.record.user_id)}.
+            Odczytany opis jest identyczny z wysłanym:
+            <b>${stored.payload === spec.payload ? 'TAK' : 'NIE'}</b>.
+          </li>
+          <li>
+            <b>Przeglądarka dostała:</b> GET /lab/xss-frame, HTTP ${htmlResponse.status}.
+            Aktywne renderowanie: <code>${escapeHtml(spec.activeRenderer)}</code>.
+          </li>
+          <li>
+            <b>Zaobserwowano:</b> wykonanie onerror: <b>${executed ? 'TAK' : 'NIE'}</b>;
+            payload jako tekst: <b>${textOnly ? 'TAK' : 'NIE'}</b>.
+          </li>
+        </ol>
+      </div>
+      <h3>Rzeczywiste zmiany odczytane z elementów strony</h3>
+      <div class="table-scroll">
+        <table class="dom-observations">
+          <thead>
+            <tr>
+              <th>Element / selektor</th>
+              <th>Przed wstawieniem opisu</th>
+              <th>Po wstawieniu opisu</th>
+            </tr>
+          </thead>
+          <tbody>${observationRows.join('')}</tbody>
+        </table>
+      </div>
+      <p class="expected">
+        <b>Zmiana interfejsu głównej strony:</b>
+        ${pageImpact}
+        Podglądy poniżej pokazują obie wersje tej samej strony demo.
+      </p>`;
+
+    let summary = 'Nie potwierdzono oczekiwanego skutku.';
+    if (executed) {
+      summary =
+        'Podatność potwierdzona — kod z opisu zmienił 5 elementów podglądu i 2 elementy głównej strony.';
+    } else if (textOnly) {
+      summary = 'Atak zatrzymany — payload jest tekstem; 7 obserwowanych elementów bez zmian.';
+    }
+
+    return renderTestResult(id, {
       pass,
-      summary: executed
-        ? 'Podatność potwierdzona — kod z opisu zmienił 5 elementów podglądu i 2 elementy głównej strony.'
-        : textOnly
-          ? 'Atak zatrzymany — payload jest tekstem; 7 obserwowanych elementów bez zmian.'
-          : 'Nie potwierdzono oczekiwanego skutku.',
+      summary,
       visual,
       observations: rows,
       storage: stored.storage,
@@ -229,7 +359,14 @@ async function xss(id) {
       why: secure
         ? 'Znaczniki opisu zakodowano jako tekst. Nie powstał element img z onerror. CSP jest dodatkową warstwą blokującą kod inline.'
         : 'Kod pochodzi z atrybutu onerror w opisie zapisanym w SQLite. Błąd ładowania obrazu uruchomił JavaScript. Zmiany DOM odczytaliśmy z obu dokumentów; niczego nie uznajemy na podstawie samego napisu „atak”.',
-      request: `POST /lab/xss-probe\nContent-Type: application/json\n\n${JSON.stringify({ description: spec.payload }, null, 2)}\n\nGET /lab/xss-frame`,
+      request: [
+        'POST /lab/xss-probe',
+        'Content-Type: application/json',
+        '',
+        JSON.stringify({ description: spec.payload }, null, 2),
+        '',
+        'GET /lab/xss-frame',
+      ].join('\n'),
       response: JSON.stringify(
         {
           postStatus: storedResponse.status,
@@ -246,14 +383,21 @@ async function xss(id) {
       ),
     });
   } finally {
-    window.removeEventListener('message', handler);
+    window.removeEventListener('message', handleExecution);
   }
 }
-function stateBox(label, state) {
-  return `<div><span>${esc(label)}</span><strong>${esc(state?.display_name ?? 'Brak odczytu')}</strong><small>${esc(state?.email ?? '')}</small></div>`;
+
+function renderStateBox(label, state) {
+  return `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(state?.display_name ?? 'Brak odczytu')}</strong>
+      <small>${escapeHtml(state?.email ?? '')}</small>
+    </div>`;
 }
+
 function showCandidate(id, candidate) {
-  const preview = $(`#csrf-request-${id}`);
+  const preview = select(`#csrf-request-${id}`);
   preview.dataset.candidate = JSON.stringify(candidate);
   const body = { ...candidate };
   if (id === 'T4') body.csrfToken = 'INVALID-TOKEN';
@@ -262,209 +406,305 @@ function showCandidate(id, candidate) {
     'POST /lab/profile-probe\nContent-Type: application/json\nCookie: connect.sid=<cookie z logowania>\n\n' +
     JSON.stringify(body, null, 2);
 }
-async function csrf(id, kind) {
-  const i = await getInfo();
-  const before = (await request('/lab/profile-state')).profile;
-  let candidate = JSON.parse($(`#csrf-request-${id}`).dataset.candidate);
+
+async function runCsrfTest(id, tokenKind) {
+  const activeInfo = await getTestInfo();
+  const before = (await requestJson('/lab/profile-state')).profile;
+  let candidate = JSON.parse(select(`#csrf-request-${id}`).dataset.candidate);
   if (candidate.display_name === before.display_name) {
-    candidate = await request('/lab/profile-candidate');
+    candidate = await requestJson('/lab/profile-candidate');
     showCandidate(id, candidate);
   }
+
   const body = { ...candidate };
-  if (kind === 'bad') body.csrfToken = 'INVALID-TOKEN';
-  if (kind === 'good') body.csrfToken = i.csrfToken;
-  const r = await fetch('/lab/profile-probe', {
+  if (tokenKind === 'bad') body.csrfToken = 'INVALID-TOKEN';
+  if (tokenKind === 'good') body.csrfToken = activeInfo.csrfToken;
+
+  const response = await fetch('/lab/profile-probe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const raw = await r.text();
-  let j = {};
+  const responseText = await response.text();
+  let responseData = {};
   try {
-    j = JSON.parse(raw);
+    responseData = JSON.parse(responseText);
   } catch {}
-  const state = await request('/lab/profile-state');
+
+  const state = await requestJson('/lab/profile-state');
   const after = state.profile;
   window.profileDemo.update(state);
-  const expected = kind === 'good' || i.mode === 'vulnerable';
-  const accepted = r.ok;
-  const same = JSON.stringify(before) === JSON.stringify(after);
-  const matches = after.display_name === candidate.display_name && after.email === candidate.email;
-  const valid = accepted
-    ? j.changed === true && j.persisted === true && j.autoRestored === false && matches
-    : r.status === 403 && same;
-  const safeBody = {
-    ...body,
-    ...(kind === 'good'
-      ? { csrfToken: '{{csrfToken}} — pobrany z /lab/test-info w tej sesji' }
-      : {}),
-  };
+
+  const expectedAcceptance = tokenKind === 'good' || activeInfo.mode === 'vulnerable';
+  const accepted = response.ok;
+  const profileUnchanged = JSON.stringify(before) === JSON.stringify(after);
+  const matchesCandidate =
+    after.display_name === candidate.display_name && after.email === candidate.email;
+  const validResult = accepted
+    ? responseData.changed === true &&
+      responseData.persisted === true &&
+      responseData.autoRestored === false &&
+      matchesCandidate
+    : response.status === 403 && profileUnchanged;
+  const safeBody = { ...body };
+  if (tokenKind === 'good') {
+    safeBody.csrfToken = '{{csrfToken}} — pobrany z /lab/test-info w tej sesji';
+  }
+
   const visual = accepted
-    ? `<div class="state-diff">${stateBox('PRZED ŻĄDANIEM · SELECT', j.before)}<span class="arrow">→</span>${stateBox('PO UPDATE · SELECT', j.observed)}<span class="arrow">→</span>${stateBox('AKTUALNY PROFIL · OSOBNY GET', after)}</div>
-<p class="expected">
-<b>HTTP ${r.status}.</b> Dane po ataku pozostają w bazie. Niezależny GET potwierdza wysłane imię, nazwisko i e-mail: <b>${matches ? 'TAK' : 'NIE'}</b>. Automatyczne przywrócenie: <b>NIE</b>.</p>
-<div class="download-row">
-<button type="button" class="secondary" data-show-current-profile>Zobacz aktualny profil na tej stronie</button>
-<a class="primary-link" href="/profile" target="_blank" rel="noopener">Otwórz zapisany profil w nowej karcie →</a>
-</div>
-<p class="muted">Przywrócenie jest opcjonalne: osobny przycisk w panelu aktualnego profilu przywraca dane sprzed pierwszej zaakceptowanej próby.</p>`
-    : `<div class="blocked-effect">
-<b>HTTP ${r.status} · ${esc(raw)}</b>
-<p>Token został odrzucony. Wylosowane dane ${esc(candidate.display_name)} · ${esc(candidate.email)} nie zostały zapisane.</p>
-</div>
-<div class="state-diff">${stateBox('GET PRZED ŻĄDANIEM', before)}<span class="arrow">→</span>${stateBox('GET PO ODRZUCENIU', after)}</div>
-<p class="expected">
-<b>Profil bez zmian:</b> ${same ? 'TAK' : 'NIE'}</p>`;
-  const result = render(id, {
-    pass: accepted === expected && valid,
+    ? `
+      <div class="state-diff">
+        ${renderStateBox('PRZED ŻĄDANIEM · SELECT', responseData.before)}
+        <span class="arrow">→</span>
+        ${renderStateBox('PO UPDATE · SELECT', responseData.observed)}
+        <span class="arrow">→</span>
+        ${renderStateBox('AKTUALNY PROFIL · OSOBNY GET', after)}
+      </div>
+      <p class="expected">
+        <b>HTTP ${response.status}.</b> Dane po ataku pozostają w bazie. Niezależny GET
+        potwierdza wysłane imię, nazwisko i e-mail: <b>${matchesCandidate ? 'TAK' : 'NIE'}</b>.
+        Automatyczne przywrócenie: <b>NIE</b>.
+      </p>
+      <div class="download-row">
+        <button type="button" class="secondary" data-show-current-profile>
+          Zobacz aktualny profil na tej stronie
+        </button>
+        <a class="primary-link" href="/profile" target="_blank" rel="noopener">
+          Otwórz zapisany profil w nowej karcie →
+        </a>
+      </div>
+      <p class="muted">
+        Przywrócenie jest opcjonalne: osobny przycisk w panelu aktualnego profilu przywraca
+        dane sprzed pierwszej zaakceptowanej próby.
+      </p>`
+    : `
+      <div class="blocked-effect">
+        <b>HTTP ${response.status} · ${escapeHtml(responseText)}</b>
+        <p>
+          Token został odrzucony. Wylosowane dane ${escapeHtml(candidate.display_name)} ·
+          ${escapeHtml(candidate.email)} nie zostały zapisane.
+        </p>
+      </div>
+      <div class="state-diff">
+        ${renderStateBox('GET PRZED ŻĄDANIEM', before)}
+        <span class="arrow">→</span>
+        ${renderStateBox('GET PO ODRZUCENIU', after)}
+      </div>
+      <p class="expected"><b>Profil bez zmian:</b> ${profileUnchanged ? 'TAK' : 'NIE'}</p>`;
+
+  let explanation =
+    'HTTP 403 potwierdza odrzucenie żądania. Odczyty przed i po potwierdzają brak zmiany danych.';
+  if (tokenKind === 'good') {
+    explanation =
+      'Poprawny token dopuścił legalny zapis. Dane pozostają w SQLite do kolejnego zapisu lub ręcznego przywrócenia.';
+  } else if (accepted) {
+    explanation =
+      'Żądanie bez poprawnego tokenu zmieniło dane użytkownika. Wylosowany profil pozostaje zapisany i jest widoczny w zakładce Profil testowy, także po odświeżeniu.';
+  }
+
+  const acceptedAction = tokenKind === 'good' ? 'Legalny zapis' : 'Atak zaakceptowany';
+  const profileStatus = profileUnchanged ? 'bez zmian' : 'ZMIENIONY';
+  const result = renderTestResult(id, {
+    pass: accepted === expectedAcceptance && validResult,
     summary: accepted
-      ? `${kind === 'good' ? 'Legalny zapis' : 'Atak zaakceptowany'} — ${after.display_name} · ${after.email}; zmiana pozostaje w profilu.`
-      : `Żądanie odrzucone — HTTP ${r.status}; profil ${same ? 'bez zmian' : 'ZMIENIONY'}.`,
+      ? `${acceptedAction} — ${after.display_name} · ${after.email}; zmiana pozostaje w profilu.`
+      : `Żądanie odrzucone — HTTP ${response.status}; profil ${profileStatus}.`,
     visual,
     before,
     after,
     candidate,
-    httpStatus: r.status,
-    changed: j.changed ?? false,
-    persisted: j.persisted ?? false,
-    autoRestored: j.autoRestored ?? false,
-    observed: j.observed ?? null,
-    why:
-      kind === 'good'
-        ? 'Poprawny token dopuścił legalny zapis. Dane pozostają w SQLite do kolejnego zapisu lub ręcznego przywrócenia.'
-        : accepted
-          ? 'Żądanie bez poprawnego tokenu zmieniło dane użytkownika. Wylosowany profil pozostaje zapisany i jest widoczny w zakładce Profil testowy, także po odświeżeniu.'
-          : 'HTTP 403 potwierdza odrzucenie żądania. Odczyty przed i po potwierdzają brak zmiany danych.',
-    request: `GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n${JSON.stringify(safeBody, null, 2)}\n\nGET /lab/profile-state`,
-    response: `HTTP ${r.status}\n${raw}\n\nNiezależne odczyty profilu:\nbefore=${JSON.stringify(before)}\nafter=${JSON.stringify(after)}\nunchanged=${same}\nmatchesSentData=${matches}`,
+    httpStatus: response.status,
+    changed: responseData.changed ?? false,
+    persisted: responseData.persisted ?? false,
+    autoRestored: responseData.autoRestored ?? false,
+    observed: responseData.observed ?? null,
+    why: explanation,
+    request: [
+      'GET /lab/profile-state',
+      'POST /lab/profile-probe',
+      'Content-Type: application/json',
+      'Cookie: [sesja po logowaniu]',
+      '',
+      JSON.stringify(safeBody, null, 2),
+      '',
+      'GET /lab/profile-state',
+    ].join('\n'),
+    response: [
+      `HTTP ${response.status}`,
+      responseText,
+      '',
+      'Niezależne odczyty profilu:',
+      `before=${JSON.stringify(before)}`,
+      `after=${JSON.stringify(after)}`,
+      `unchanged=${profileUnchanged}`,
+      `matchesSentData=${matchesCandidate}`,
+    ].join('\n'),
   });
+
   try {
-    showCandidate(id, await request('/lab/profile-candidate'));
+    showCandidate(id, await requestJson('/lab/profile-candidate'));
   } catch (error) {
-    $(`#csrf-request-${id}`).textContent +=
+    select(`#csrf-request-${id}`).textContent +=
       '\n\nNie udało się przygotować kolejnych danych: ' + error.message;
   }
   return result;
 }
-async function t6() {
-  const i = await getInfo();
-  const secure = i.mode === 'secure';
+
+async function runSecurityHeadersTest() {
+  const { mode, headers, cookie } = await getTestInfo();
+  const secure = mode === 'secure';
+  const https = location.protocol === 'https:';
   const headersMatch = secure
-    ? !!i.headers.csp && i.headers.xContentType === 'nosniff' && !!i.headers.xFrame
-    : !i.headers.csp;
+    ? !!headers.csp && headers.xContentType === 'nosniff' && !!headers.xFrame
+    : !headers.csp;
   const pass =
     headersMatch &&
-    i.cookie.httpOnly === true &&
-    i.cookie.sameSite === (secure ? 'strict' : 'lax') &&
-    i.cookie.secure === (secure && location.protocol === 'https:');
-  const https = location.protocol === 'https:';
-  return render('T6', {
+    cookie.httpOnly === true &&
+    cookie.sameSite === (secure ? 'strict' : 'lax') &&
+    cookie.secure === (secure && https);
+
+  let secureCookieStatus = 'Nieaktywne · HTTP';
+  if (cookie.secure) {
+    secureCookieStatus = 'Aktywne';
+  } else if (https) {
+    secureCookieStatus = 'Wyłączone w tym trybie';
+  }
+  const httpsNote =
+    secure && !https
+      ? `
+        <p class="expected">
+          To zgodny wynik dla HTTP, ale nie pełne potwierdzenie cookie Secure.
+          Uruchom HTTPS i powtórz T6 według zakładki „Instrukcja i Postman”.
+        </p>`
+      : '';
+  const summaryParts = [
+    `CSP ${headers.csp ? 'aktywna' : 'wyłączona'}`,
+    `SameSite=${cookie.sameSite}`,
+    `Secure=${cookie.secure}`,
+  ];
+  if (secure && !https) summaryParts.push('hardening HTTPS jeszcze niepotwierdzony');
+
+  return renderTestResult('T6', {
     pass,
-    summary: `CSP ${i.headers.csp ? 'aktywna' : 'wyłączona'} · SameSite=${i.cookie.sameSite} · Secure=${i.cookie.secure}${secure && !https ? ' · hardening HTTPS jeszcze niepotwierdzony' : ''}`,
-    visual: `<div class="lab-grid">
-<div>
-<span>CSP</span>
-<b>${i.headers.csp ? 'Włączona' : 'Brak ochrony'}</b>
-</div>
-<div>
-<span>HttpOnly</span>
-<b>${i.cookie.httpOnly}</b>
-</div>
-<div>
-<span>SameSite</span>
-<b>${esc(i.cookie.sameSite)}</b>
-</div>
-<div>
-<span>Secure</span>
-<b>${i.cookie.secure ? 'Aktywne' : https ? 'Wyłączone w tym trybie' : 'Nieaktywne · HTTP'}</b>
-</div>
-</div>${secure && !https ? '<p class="expected">To zgodny wynik dla HTTP, ale nie pełne potwierdzenie cookie Secure. Uruchom HTTPS i powtórz T6 według zakładki „Instrukcja i Postman”.</p>' : ''}`,
-    headers: i.headers,
-    cookie: i.cookie,
-    fullHttpsHardening: secure && https && i.cookie.secure,
+    summary: summaryParts.join(' · '),
+    visual: `
+      <div class="lab-grid">
+        <div>
+          <span>CSP</span>
+          <b>${headers.csp ? 'Włączona' : 'Brak ochrony'}</b>
+        </div>
+        <div>
+          <span>HttpOnly</span>
+          <b>${cookie.httpOnly}</b>
+        </div>
+        <div>
+          <span>SameSite</span>
+          <b>${escapeHtml(cookie.sameSite)}</b>
+        </div>
+        <div>
+          <span>Secure</span>
+          <b>${secureCookieStatus}</b>
+        </div>
+      </div>
+      ${httpsNote}`,
+    headers,
+    cookie,
+    fullHttpsHardening: secure && https && cookie.secure,
     why: 'Nagłówki odczytano z aktywnej odpowiedzi serwera, a właściwości cookie z konfiguracji sesji. Postman pozwala dodatkowo sprawdzić rzeczywisty nagłówek Set-Cookie; test przeglądarkowy sprawdza flagi cookie zapisane przez Chrome.',
     request: 'GET /lab/test-info\nCookie: [sesja po logowaniu]',
     response: JSON.stringify(
-      { httpStatus: 200, protocol: location.protocol, headers: i.headers, cookie: i.cookie },
+      { httpStatus: 200, protocol: location.protocol, headers, cookie },
       null,
       2,
     ),
   });
 }
-function lock(value) {
-  busy = value;
-  document
-    .querySelectorAll('.run-test,#run-all,[data-mode],#reset-xss,#restore-profile')
-    .forEach(
-      (button) =>
-        (button.disabled =
-          value ||
-          button.dataset.unavailable === 'true' ||
-          (button.id === 'restore-profile' &&
-            !$('#live-profile-baseline').textContent.startsWith('Profil sprzed'))),
-    );
+
+function setTestsRunning(isRunning) {
+  testsRunning = isRunning;
+  document.querySelectorAll('.run-test,#run-all,[data-mode],#reset-xss').forEach((button) => {
+    button.disabled = isRunning || button.dataset.unavailable === 'true';
+  });
+  window.profileDemo.setBusy(isRunning);
 }
-async function run(id) {
-  const card = $(`#card-${id}`);
+
+async function runTest(id) {
+  const card = select(`#card-${id}`);
   card.classList.add('is-running');
   card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  $(`#result-${id}`).innerHTML =
+  select(`#result-${id}`).innerHTML =
     '<p class="running" role="status">Wykonywanie rzeczywistego testu…</p>';
   try {
-    return id === 'T1' || id === 'T2'
-      ? await xss(id)
-      : id === 'T6'
-        ? await t6()
-        : await csrf(id, id === 'T5' ? 'good' : id === 'T4' ? 'bad' : 'none');
+    switch (id) {
+      case 'T1':
+      case 'T2':
+        return await runXssTest(id);
+      case 'T5':
+        return await runCsrfTest(id, 'good');
+      case 'T4':
+        return await runCsrfTest(id, 'bad');
+      case 'T6':
+        return await runSecurityHeadersTest();
+      default:
+        return await runCsrfTest(id, 'none');
+    }
   } catch (error) {
-    $(`#result-${id}`).innerHTML =
-      `<div class="result-banner fail">Test nie został ukończony: ${esc(error.message)}</div>`;
-    if (info) {
-      const key = id === 'T1' || id === 'T2' ? 'XSS' : id;
-      delete evidence[info.mode]?.[key];
-      try {
-        sessionStorage.setItem('hsd-evidence', JSON.stringify(evidence));
-      } catch {}
-      compare();
+    select(`#result-${id}`).innerHTML =
+      `<div class="result-banner fail">Test nie został ukończony: ${escapeHtml(error.message)}</div>`;
+    if (testInfo) {
+      delete evidence[testInfo.mode]?.[getEvidenceKey(id)];
+      persistEvidence();
+      renderComparison();
     }
     return false;
   } finally {
     card.classList.remove('is-running');
   }
 }
+
+select('#reset-xss')?.addEventListener('click', resetXssEffect);
 document.querySelectorAll('.run-test').forEach((button) =>
   button.addEventListener('click', async () => {
-    if (busy || button.dataset.unavailable === 'true') return;
-    lock(true);
+    if (testsRunning || button.dataset.unavailable === 'true') return;
+    setTestsRunning(true);
     try {
-      await run(button.dataset.test);
-      $(`#result-${button.dataset.test}`).scrollIntoView({ behavior: 'smooth', block: 'start' });
+      await runTest(button.dataset.test);
+      select(`#result-${button.dataset.test}`).scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
     } finally {
-      lock(false);
+      setTestsRunning(false);
     }
   }),
 );
-$('#run-all').addEventListener('click', async () => {
-  if (busy) return;
-  lock(true);
+
+select('#run-all').addEventListener('click', async () => {
+  if (testsRunning) return;
+  setTestsRunning(true);
   const ids = [...document.querySelectorAll('.run-test:not([data-unavailable])')].map(
     (button) => button.dataset.test,
   );
   let passed = 0;
   try {
     for (const [index, id] of ids.entries()) {
-      $('#all-summary').textContent = `Trwa test ${index + 1}/${ids.length}: ${id}`;
-      if (await run(id)) passed++;
+      select('#all-summary').textContent = `Trwa test ${index + 1}/${ids.length}: ${id}`;
+      if (await runTest(id)) passed++;
     }
-    $('#all-summary').textContent =
-      `${passed}/${ids.length} scenariuszy potwierdzonych. ${info.mode === 'vulnerable' ? 'Teraz włącz ochronę i powtórz testy.' : 'Sprawdź porównanie BEFORE → AFTER poniżej.'}`;
-    $('#comparison-panel').open = true;
-    $('#comparison-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const nextStep =
+      testInfo.mode === 'vulnerable'
+        ? 'Teraz włącz ochronę i powtórz testy.'
+        : 'Sprawdź porównanie BEFORE → AFTER poniżej.';
+    select('#all-summary').textContent =
+      `${passed}/${ids.length} scenariuszy potwierdzonych. ${nextStep}`;
+    select('#comparison-panel').open = true;
+    select('#comparison-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } finally {
-    lock(false);
+    setTestsRunning(false);
   }
 });
-$('#export-report').addEventListener('click', () => {
+
+select('#export-report').addEventListener('click', () => {
   const blob = new Blob(
     [
       JSON.stringify(
@@ -492,8 +732,8 @@ $('#export-report').addEventListener('click', () => {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-compare();
+renderComparison();
 
 window.addEventListener('resize', () =>
-  document.querySelectorAll('.probe-frame').forEach(fitFrame),
+  document.querySelectorAll('.probe-frame').forEach(resizePreviewFrame),
 );

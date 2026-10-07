@@ -1,4 +1,5 @@
 const { randomInt, randomUUID } = require('node:crypto');
+
 const firstNames = [
   'Anna',
   'Marta',
@@ -27,18 +28,22 @@ const surnames = [
   'Lis',
   'Pawlak',
 ];
+
 function generateProfile(previous = {}) {
-  let display_name;
+  let displayName;
   do {
-    display_name =
-      firstNames[randomInt(firstNames.length)] + ' ' + surnames[randomInt(surnames.length)];
-  } while (display_name === previous.display_name);
-  const slug = display_name
+    const firstName = firstNames[randomInt(firstNames.length)];
+    const surname = surnames[randomInt(surnames.length)];
+    displayName = `${firstName} ${surname}`;
+  } while (displayName === previous.display_name);
+
+  const slug = displayName
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/ł/g, 'l')
     .toLowerCase()
     .replace(/\s+/g, '.');
-  return { display_name, email: `${slug}.${randomUUID()}@example.test` };
+  return { display_name: displayName, email: `${slug}.${randomUUID()}@example.test` };
 }
+
 module.exports = { generateProfile };
