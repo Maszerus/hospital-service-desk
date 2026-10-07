@@ -1,6 +1,6 @@
 {
   "project": "P7 — Browser Hardening",
-  "exportedAt": "2026-10-06T21:39:52.901Z",
+  "exportedAt": "2026-10-07T10:59:23.808Z",
   "scope": "localhost; kontrolowane testy własnego konta",
   "limitations": [
     "CSRF: test walidacji tokenu w tej samej sesji, nie dowód cross-site.",
@@ -71,67 +71,67 @@
         "response": "{\n  \"postStatus\": 200,\n  \"getHtmlStatus\": 200,\n  \"htmlContainsRawImage\": true,\n  \"stored\": true,\n  \"storage\": {\n    \"table\": \"lab_payloads\",\n    \"record\": {\n      \"user_id\": 1,\n      \"description\": \"<img src=\\\"/lab/missing-image\\\" onerror=\\\"document.body.classList.add('compromised');\\ndocument.getElementById('effect').textContent = 'ATAK XSS: kod z opisu zmienił tę stronę';\\ndocument.getElementById('demo-priority').textContent = 'KRYTYCZNY — zmiana przez XSS';\\ndocument.getElementById('demo-owner').textContent = 'Kontrolowany payload XSS';\\ndocument.getElementById('demo-action').textContent = 'Przycisk zmieniony przez XSS';\\nif (parent !== window) {\\n  const header = parent.document.getElementById('app-header');\\n  const banner = parent.document.getElementById('xss-page-impact');\\n  if (header) header.classList.add('xss-header');\\n  if (banner) {\\n    banner.hidden = false;\\n    banner.textContent = 'DEMO XSS: skrypt zapisany w opisie zmienił nagłówek aplikacji i ten komunikat.';\\n  }\\n}\\nparent.postMessage('XSS_EXECUTED', location.origin);\\\">\"\n    }\n  },\n  \"javascriptExecuted\": true,\n  \"renderedAsText\": false,\n  \"domObservations\": [\n    {\n      \"element\": \"Tytuł podglądu\",\n      \"selector\": \"#effect\",\n      \"before\": \"Oryginalna strona zgłoszenia\",\n      \"observed\": \"ATAK XSS: kod z opisu zmienił tę stronę\"\n    },\n    {\n      \"element\": \"Priorytet w podglądzie\",\n      \"selector\": \"#demo-priority\",\n      \"before\": \"Normalny\",\n      \"observed\": \"KRYTYCZNY — zmiana przez XSS\"\n    },\n    {\n      \"element\": \"Opiekun w podglądzie\",\n      \"selector\": \"#demo-owner\",\n      \"before\": \"Dział IT\",\n      \"observed\": \"Kontrolowany payload XSS\"\n    },\n    {\n      \"element\": \"Tekst przycisku\",\n      \"selector\": \"#demo-action\",\n      \"before\": \"Wyślij zgłoszenie\",\n      \"observed\": \"Przycisk zmieniony przez XSS\"\n    },\n    {\n      \"element\": \"Wygląd podglądu\",\n      \"selector\": \"body\",\n      \"before\": \"demo-document\",\n      \"observed\": \"demo-document compromised\"\n    },\n    {\n      \"element\": \"Kolor głównego nagłówka aplikacji\",\n      \"selector\": \"parent #app-header.className\",\n      \"before\": \"(bez klasy ataku)\",\n      \"observed\": \"xss-header\"\n    },\n    {\n      \"element\": \"Komunikat na głównej stronie\",\n      \"selector\": \"parent #xss-page-impact\",\n      \"before\": \"Ukryty\",\n      \"observed\": \"DEMO XSS: skrypt zapisany w opisie zmienił nagłówek aplikacji i ten komunikat.\"\n    }\n  ]\n}",
         "id": "T1",
         "mode": "vulnerable",
-        "timestamp": "2026-10-06T21:39:47.377Z"
+        "timestamp": "2026-10-07T10:59:18.681Z"
       },
       "T3": {
         "pass": true,
-        "summary": "Atak zaakceptowany — Michał Zając · michal.zajac.a288b941-a372-43d0-a778-5d57fb0214fa@example.test; zmiana pozostaje w profilu.",
+        "summary": "Atak zaakceptowany — Piotr Pawlak · piotr.pawlak.df342c2b-b2af-4ae0-8a05-5375c67f29f4@example.test; zmiana pozostaje w profilu.",
         "before": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "after": {
-          "display_name": "Michał Zając",
-          "email": "michal.zajac.a288b941-a372-43d0-a778-5d57fb0214fa@example.test"
+          "display_name": "Piotr Pawlak",
+          "email": "piotr.pawlak.df342c2b-b2af-4ae0-8a05-5375c67f29f4@example.test"
         },
         "candidate": {
-          "display_name": "Michał Zając",
-          "email": "michal.zajac.a288b941-a372-43d0-a778-5d57fb0214fa@example.test"
+          "display_name": "Piotr Pawlak",
+          "email": "piotr.pawlak.df342c2b-b2af-4ae0-8a05-5375c67f29f4@example.test"
         },
         "httpStatus": 200,
         "changed": true,
         "persisted": true,
         "autoRestored": false,
         "observed": {
-          "display_name": "Michał Zając",
-          "email": "michal.zajac.a288b941-a372-43d0-a778-5d57fb0214fa@example.test"
+          "display_name": "Piotr Pawlak",
+          "email": "piotr.pawlak.df342c2b-b2af-4ae0-8a05-5375c67f29f4@example.test"
         },
         "why": "Żądanie bez poprawnego tokenu zmieniło dane użytkownika. Wylosowany profil pozostaje zapisany i jest widoczny w zakładce Profil testowy, także po odświeżeniu.",
-        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Michał Zając\",\n  \"email\": \"michal.zajac.a288b941-a372-43d0-a778-5d57fb0214fa@example.test\"\n}\n\nGET /lab/profile-state",
-        "response": "HTTP 200\n{\"accepted\":true,\"before\":{\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"},\"observed\":{\"display_name\":\"Michał Zając\",\"email\":\"michal.zajac.a288b941-a372-43d0-a778-5d57fb0214fa@example.test\"},\"changed\":true,\"persisted\":true,\"autoRestored\":false,\"initialProfile\":{\"display_name\":\"Jan Kowalski\",\"email\":\"jan.kowalski@example.test\"}}\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"}\nafter={\"display_name\":\"Michał Zając\",\"email\":\"michal.zajac.a288b941-a372-43d0-a778-5d57fb0214fa@example.test\"}\nunchanged=false\nmatchesSentData=true",
+        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Piotr Pawlak\",\n  \"email\": \"piotr.pawlak.df342c2b-b2af-4ae0-8a05-5375c67f29f4@example.test\"\n}\n\nGET /lab/profile-state",
+        "response": "HTTP 200\n{\"accepted\":true,\"before\":{\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"},\"observed\":{\"display_name\":\"Piotr Pawlak\",\"email\":\"piotr.pawlak.df342c2b-b2af-4ae0-8a05-5375c67f29f4@example.test\"},\"changed\":true,\"persisted\":true,\"autoRestored\":false,\"initialProfile\":{\"display_name\":\"Jan Kowalski\",\"email\":\"jan.kowalski@example.test\"}}\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"}\nafter={\"display_name\":\"Piotr Pawlak\",\"email\":\"piotr.pawlak.df342c2b-b2af-4ae0-8a05-5375c67f29f4@example.test\"}\nunchanged=false\nmatchesSentData=true",
         "id": "T3",
         "mode": "vulnerable",
-        "timestamp": "2026-10-06T21:39:48.553Z"
+        "timestamp": "2026-10-07T10:59:21.045Z"
       },
       "T4": {
         "pass": true,
-        "summary": "Atak zaakceptowany — Michał Pawlak · michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test; zmiana pozostaje w profilu.",
+        "summary": "Atak zaakceptowany — Katarzyna Nowak · katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test; zmiana pozostaje w profilu.",
         "before": {
-          "display_name": "Jakub Krawczyk",
-          "email": "jakub.krawczyk.ff2fb658-76c2-4460-b407-5b57aeb92646@example.test"
+          "display_name": "Katarzyna Zając",
+          "email": "katarzyna.zajac.bfa975c9-89ad-465c-9f9f-88910613f690@example.test"
         },
         "after": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "candidate": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "httpStatus": 200,
         "changed": true,
         "persisted": true,
         "autoRestored": false,
         "observed": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "why": "Żądanie bez poprawnego tokenu zmieniło dane użytkownika. Wylosowany profil pozostaje zapisany i jest widoczny w zakładce Profil testowy, także po odświeżeniu.",
-        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Michał Pawlak\",\n  \"email\": \"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\",\n  \"csrfToken\": \"INVALID-TOKEN\"\n}\n\nGET /lab/profile-state",
-        "response": "HTTP 200\n{\"accepted\":true,\"before\":{\"display_name\":\"Jakub Krawczyk\",\"email\":\"jakub.krawczyk.ff2fb658-76c2-4460-b407-5b57aeb92646@example.test\"},\"observed\":{\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"},\"changed\":true,\"persisted\":true,\"autoRestored\":false,\"initialProfile\":{\"display_name\":\"Jan Kowalski\",\"email\":\"jan.kowalski@example.test\"}}\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Jakub Krawczyk\",\"email\":\"jakub.krawczyk.ff2fb658-76c2-4460-b407-5b57aeb92646@example.test\"}\nafter={\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"}\nunchanged=false\nmatchesSentData=true",
+        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Katarzyna Nowak\",\n  \"email\": \"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\",\n  \"csrfToken\": \"INVALID-TOKEN\"\n}\n\nGET /lab/profile-state",
+        "response": "HTTP 200\n{\"accepted\":true,\"before\":{\"display_name\":\"Katarzyna Zając\",\"email\":\"katarzyna.zajac.bfa975c9-89ad-465c-9f9f-88910613f690@example.test\"},\"observed\":{\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"},\"changed\":true,\"persisted\":true,\"autoRestored\":false,\"initialProfile\":{\"display_name\":\"Jan Kowalski\",\"email\":\"jan.kowalski@example.test\"}}\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Katarzyna Zając\",\"email\":\"katarzyna.zajac.bfa975c9-89ad-465c-9f9f-88910613f690@example.test\"}\nafter={\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"}\nunchanged=false\nmatchesSentData=true",
         "id": "T4",
         "mode": "vulnerable",
-        "timestamp": "2026-10-06T21:39:47.405Z"
+        "timestamp": "2026-10-07T10:59:18.718Z"
       },
       "T6": {
         "pass": true,
@@ -152,7 +152,7 @@
         "response": "{\n  \"httpStatus\": 200,\n  \"protocol\": \"http:\",\n  \"headers\": {\n    \"csp\": null,\n    \"xContentType\": null,\n    \"xFrame\": null\n  },\n  \"cookie\": {\n    \"httpOnly\": true,\n    \"sameSite\": \"lax\",\n    \"secure\": false\n  }\n}",
         "id": "T6",
         "mode": "vulnerable",
-        "timestamp": "2026-10-06T21:39:47.410Z"
+        "timestamp": "2026-10-07T10:59:18.723Z"
       }
     },
     "secure": {
@@ -217,22 +217,22 @@
         "response": "{\n  \"postStatus\": 200,\n  \"getHtmlStatus\": 200,\n  \"htmlContainsRawImage\": false,\n  \"stored\": true,\n  \"storage\": {\n    \"table\": \"lab_payloads\",\n    \"record\": {\n      \"user_id\": 1,\n      \"description\": \"<img src=\\\"/lab/missing-image\\\" onerror=\\\"document.body.classList.add('compromised');\\ndocument.getElementById('effect').textContent = 'ATAK XSS: kod z opisu zmienił tę stronę';\\ndocument.getElementById('demo-priority').textContent = 'KRYTYCZNY — zmiana przez XSS';\\ndocument.getElementById('demo-owner').textContent = 'Kontrolowany payload XSS';\\ndocument.getElementById('demo-action').textContent = 'Przycisk zmieniony przez XSS';\\nif (parent !== window) {\\n  const header = parent.document.getElementById('app-header');\\n  const banner = parent.document.getElementById('xss-page-impact');\\n  if (header) header.classList.add('xss-header');\\n  if (banner) {\\n    banner.hidden = false;\\n    banner.textContent = 'DEMO XSS: skrypt zapisany w opisie zmienił nagłówek aplikacji i ten komunikat.';\\n  }\\n}\\nparent.postMessage('XSS_EXECUTED', location.origin);\\\">\"\n    }\n  },\n  \"javascriptExecuted\": false,\n  \"renderedAsText\": true,\n  \"domObservations\": [\n    {\n      \"element\": \"Tytuł podglądu\",\n      \"selector\": \"#effect\",\n      \"before\": \"Oryginalna strona zgłoszenia\",\n      \"observed\": \"Oryginalna strona zgłoszenia\"\n    },\n    {\n      \"element\": \"Priorytet w podglądzie\",\n      \"selector\": \"#demo-priority\",\n      \"before\": \"Normalny\",\n      \"observed\": \"Normalny\"\n    },\n    {\n      \"element\": \"Opiekun w podglądzie\",\n      \"selector\": \"#demo-owner\",\n      \"before\": \"Dział IT\",\n      \"observed\": \"Dział IT\"\n    },\n    {\n      \"element\": \"Tekst przycisku\",\n      \"selector\": \"#demo-action\",\n      \"before\": \"Wyślij zgłoszenie\",\n      \"observed\": \"Wyślij zgłoszenie\"\n    },\n    {\n      \"element\": \"Wygląd podglądu\",\n      \"selector\": \"body\",\n      \"before\": \"demo-document\",\n      \"observed\": \"demo-document\"\n    },\n    {\n      \"element\": \"Kolor głównego nagłówka aplikacji\",\n      \"selector\": \"parent #app-header.className\",\n      \"before\": \"(bez klasy ataku)\",\n      \"observed\": \"(bez klasy ataku)\"\n    },\n    {\n      \"element\": \"Komunikat na głównej stronie\",\n      \"selector\": \"parent #xss-page-impact\",\n      \"before\": \"Ukryty\",\n      \"observed\": \"Ukryty\"\n    }\n  ]\n}",
         "id": "T2",
         "mode": "secure",
-        "timestamp": "2026-10-06T21:39:51.891Z"
+        "timestamp": "2026-10-07T10:59:21.813Z"
       },
       "T3": {
         "pass": true,
         "summary": "Żądanie odrzucone — HTTP 403; profil bez zmian.",
         "before": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "after": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "candidate": {
-          "display_name": "Katarzyna Dudek",
-          "email": "katarzyna.dudek.3505076f-4d21-4270-94ce-bfe16830a02f@example.test"
+          "display_name": "Tomasz Lis",
+          "email": "tomasz.lis.31b3bf4b-9315-4b8a-b793-65423496df62@example.test"
         },
         "httpStatus": 403,
         "changed": false,
@@ -240,26 +240,26 @@
         "autoRestored": false,
         "observed": null,
         "why": "HTTP 403 potwierdza odrzucenie żądania. Odczyty przed i po potwierdzają brak zmiany danych.",
-        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Katarzyna Dudek\",\n  \"email\": \"katarzyna.dudek.3505076f-4d21-4270-94ce-bfe16830a02f@example.test\"\n}\n\nGET /lab/profile-state",
-        "response": "HTTP 403\n403 Forbidden - invalid CSRF token\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"}\nafter={\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"}\nunchanged=true\nmatchesSentData=false",
+        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Tomasz Lis\",\n  \"email\": \"tomasz.lis.31b3bf4b-9315-4b8a-b793-65423496df62@example.test\"\n}\n\nGET /lab/profile-state",
+        "response": "HTTP 403\n403 Forbidden - invalid CSRF token\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"}\nafter={\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"}\nunchanged=true\nmatchesSentData=false",
         "id": "T3",
         "mode": "secure",
-        "timestamp": "2026-10-06T21:39:51.918Z"
+        "timestamp": "2026-10-07T10:59:21.855Z"
       },
       "T4": {
         "pass": true,
         "summary": "Żądanie odrzucone — HTTP 403; profil bez zmian.",
         "before": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "after": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "candidate": {
-          "display_name": "Anna Król",
-          "email": "anna.krol.b3957af1-3c0e-4893-82db-a645bfe76ce4@example.test"
+          "display_name": "Anna Lis",
+          "email": "anna.lis.1a0061f1-2d0c-4c78-b430-fba729f1a51f@example.test"
         },
         "httpStatus": 403,
         "changed": false,
@@ -267,41 +267,41 @@
         "autoRestored": false,
         "observed": null,
         "why": "HTTP 403 potwierdza odrzucenie żądania. Odczyty przed i po potwierdzają brak zmiany danych.",
-        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Anna Król\",\n  \"email\": \"anna.krol.b3957af1-3c0e-4893-82db-a645bfe76ce4@example.test\",\n  \"csrfToken\": \"INVALID-TOKEN\"\n}\n\nGET /lab/profile-state",
-        "response": "HTTP 403\n403 Forbidden - invalid CSRF token\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"}\nafter={\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"}\nunchanged=true\nmatchesSentData=false",
+        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Anna Lis\",\n  \"email\": \"anna.lis.1a0061f1-2d0c-4c78-b430-fba729f1a51f@example.test\",\n  \"csrfToken\": \"INVALID-TOKEN\"\n}\n\nGET /lab/profile-state",
+        "response": "HTTP 403\n403 Forbidden - invalid CSRF token\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"}\nafter={\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"}\nunchanged=true\nmatchesSentData=false",
         "id": "T4",
         "mode": "secure",
-        "timestamp": "2026-10-06T21:39:51.937Z"
+        "timestamp": "2026-10-07T10:59:21.870Z"
       },
       "T5": {
         "pass": true,
-        "summary": "Legalny zapis — Katarzyna Wróbel · katarzyna.wrobel.b1a28f4a-8b20-4100-a3ee-c00f3679656a@example.test; zmiana pozostaje w profilu.",
+        "summary": "Legalny zapis — Jan Nowak · jan.nowak.bc873421-92e1-40a0-9689-a1174a3708f1@example.test; zmiana pozostaje w profilu.",
         "before": {
-          "display_name": "Michał Pawlak",
-          "email": "michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test"
+          "display_name": "Katarzyna Nowak",
+          "email": "katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test"
         },
         "after": {
-          "display_name": "Katarzyna Wróbel",
-          "email": "katarzyna.wrobel.b1a28f4a-8b20-4100-a3ee-c00f3679656a@example.test"
+          "display_name": "Jan Nowak",
+          "email": "jan.nowak.bc873421-92e1-40a0-9689-a1174a3708f1@example.test"
         },
         "candidate": {
-          "display_name": "Katarzyna Wróbel",
-          "email": "katarzyna.wrobel.b1a28f4a-8b20-4100-a3ee-c00f3679656a@example.test"
+          "display_name": "Jan Nowak",
+          "email": "jan.nowak.bc873421-92e1-40a0-9689-a1174a3708f1@example.test"
         },
         "httpStatus": 200,
         "changed": true,
         "persisted": true,
         "autoRestored": false,
         "observed": {
-          "display_name": "Katarzyna Wróbel",
-          "email": "katarzyna.wrobel.b1a28f4a-8b20-4100-a3ee-c00f3679656a@example.test"
+          "display_name": "Jan Nowak",
+          "email": "jan.nowak.bc873421-92e1-40a0-9689-a1174a3708f1@example.test"
         },
         "why": "Poprawny token dopuścił legalny zapis. Dane pozostają w SQLite do kolejnego zapisu lub ręcznego przywrócenia.",
-        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Katarzyna Wróbel\",\n  \"email\": \"katarzyna.wrobel.b1a28f4a-8b20-4100-a3ee-c00f3679656a@example.test\",\n  \"csrfToken\": \"{{csrfToken}} — pobrany z /lab/test-info w tej sesji\"\n}\n\nGET /lab/profile-state",
-        "response": "HTTP 200\n{\"accepted\":true,\"before\":{\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"},\"observed\":{\"display_name\":\"Katarzyna Wróbel\",\"email\":\"katarzyna.wrobel.b1a28f4a-8b20-4100-a3ee-c00f3679656a@example.test\"},\"changed\":true,\"persisted\":true,\"autoRestored\":false,\"initialProfile\":{\"display_name\":\"Jan Kowalski\",\"email\":\"jan.kowalski@example.test\"}}\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Michał Pawlak\",\"email\":\"michal.pawlak.abb93756-53aa-4f36-b36f-711f193073e1@example.test\"}\nafter={\"display_name\":\"Katarzyna Wróbel\",\"email\":\"katarzyna.wrobel.b1a28f4a-8b20-4100-a3ee-c00f3679656a@example.test\"}\nunchanged=false\nmatchesSentData=true",
+        "request": "GET /lab/profile-state\nPOST /lab/profile-probe\nContent-Type: application/json\nCookie: [sesja po logowaniu]\n\n{\n  \"display_name\": \"Jan Nowak\",\n  \"email\": \"jan.nowak.bc873421-92e1-40a0-9689-a1174a3708f1@example.test\",\n  \"csrfToken\": \"{{csrfToken}} — pobrany z /lab/test-info w tej sesji\"\n}\n\nGET /lab/profile-state",
+        "response": "HTTP 200\n{\"accepted\":true,\"before\":{\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"},\"observed\":{\"display_name\":\"Jan Nowak\",\"email\":\"jan.nowak.bc873421-92e1-40a0-9689-a1174a3708f1@example.test\"},\"changed\":true,\"persisted\":true,\"autoRestored\":false,\"initialProfile\":{\"display_name\":\"Jan Kowalski\",\"email\":\"jan.kowalski@example.test\"}}\n\nNiezależne odczyty profilu:\nbefore={\"display_name\":\"Katarzyna Nowak\",\"email\":\"katarzyna.nowak.960572a4-3762-47fa-8d26-a51cbffccac0@example.test\"}\nafter={\"display_name\":\"Jan Nowak\",\"email\":\"jan.nowak.bc873421-92e1-40a0-9689-a1174a3708f1@example.test\"}\nunchanged=false\nmatchesSentData=true",
         "id": "T5",
         "mode": "secure",
-        "timestamp": "2026-10-06T21:39:51.952Z"
+        "timestamp": "2026-10-07T10:59:21.880Z"
       },
       "T6": {
         "pass": true,
@@ -322,7 +322,7 @@
         "response": "{\n  \"httpStatus\": 200,\n  \"protocol\": \"http:\",\n  \"headers\": {\n    \"csp\": \"default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' 'unsafe-inline';frame-src 'self'\",\n    \"xContentType\": \"nosniff\",\n    \"xFrame\": \"SAMEORIGIN\"\n  },\n  \"cookie\": {\n    \"httpOnly\": true,\n    \"sameSite\": \"strict\",\n    \"secure\": false\n  }\n}",
         "id": "T6",
         "mode": "secure",
-        "timestamp": "2026-10-06T21:39:51.961Z"
+        "timestamp": "2026-10-07T10:59:21.890Z"
       }
     }
   }

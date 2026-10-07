@@ -4,6 +4,8 @@
   "description": "BAI 2026 Security Lab: runtime vulnerable/secure modes with real XSS/CSRF tests",
   "main": "app.js",
   "scripts": {
+    "format": "prettier --write app.js csrf-demo.html \"src/**/*.js\" \"public/**/*.{js,css}\" \"scripts/*.{js,cjs}\" \"tests/**/*.js\" package.json .prettierrc.json",
+    "format:check": "prettier --check app.js csrf-demo.html \"src/**/*.js\" \"public/**/*.{js,css}\" \"scripts/*.{js,cjs}\" \"tests/**/*.js\" package.json .prettierrc.json",
     "start": "node app.js",
     "dev": "node --watch app.js",
     "test": "node --test",
@@ -27,6 +29,7 @@
   },
   "license": "UNLICENSED",
   "devDependencies": {
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "prettier": "3.9.9"
   }
 }
