@@ -1,0 +1,17 @@
+<nav aria-label="Nawigacja główna">
+  <a href="/security-tests" aria-current="<%= page === 'security-tests' ? 'page' : 'false' %>"
+    >Laboratorium bezpieczeństwa</a
+  >
+  <a
+    href="/tickets"
+    aria-current="<%= page === 'tickets' || page === 'ticket-new' ? 'page' : 'false' %>"
+    >Zgłoszenia</a
+  >
+  <a href="/profile" aria-current="<%= page === 'profile' ? 'page' : 'false' %>">Profil testowy</a>
+  <a href="/instructions" aria-current="<%= page === 'instructions' ? 'page' : 'false' %>"
+    >Instrukcja i Postman</a
+  >
+  <form method="post" action="/logout">
+    <button class="quiet">Wyloguj</button>
+  </form>
+</nav>

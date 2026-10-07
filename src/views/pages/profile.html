@@ -1,0 +1,17 @@
+<%- include('../partials/nav.html') %>
+<%- include('../partials/mode-panel.html') %>
+<%- include('../partials/lab-dashboard.html') %>
+<%- include('../partials/profile-panel.html', { state }) %>
+<h1>Profil testowy</h1>
+<p>
+  Zmiana tych danych pokazuje skutek żądania CSRF. Zapis formularza to legalna operacja użytkownika.
+</p>
+<% if (saved) { %>
+<div class="notice" role="status">✓ Dane profilu zostały zapisane.</div>
+<% } %>
+<form method="post" action="/profile/update">
+  <%- include('../partials/csrf-input.html') %>
+  <label>Nazwa<input name="display_name" value="<%= user.display_name %>" /></label>
+  <label>E-mail<input name="email" value="<%= user.email %>" /></label>
+  <button>Zapisz</button>
+</form>

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><%= title %> · Hospital Service Desk</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body data-lab-mode="<%= mode %>">
+    <header id="app-header">
+      <a href="/security-tests" id="app-brand"
+        ><span class="brand-mark">H+</span> Hospital Service Desk</a
+      >
+      <button
+        type="button"
+        class="mode <%= mode %>"
+        data-mode="<%= secure ? 'vulnerable' : 'secure' %>"
+        aria-label="<%= secure ? 'Wyłącz ochronę' : 'Włącz ochronę' %>"
+        title="<%= secure ? 'Kliknij, aby wyłączyć ochronę' : 'Kliknij, aby włączyć ochronę' %>"
+        ><%= secure ? 'Ochrona aktywna' : 'Wersja podatna' %></button
+      >
+    </header>
+    <aside id="xss-page-impact" class="page-impact" role="status" hidden></aside>
+    <main><%- include('pages/' + page + '.html') %></main>
+    <script src="/remember-login.js"></script>
+    <script src="/mode-switch.js"></script>
+    <% for (const scriptPath of scriptPaths) { %>
+    <script src="<%= scriptPath %>"></script>
+    <% } %>
+  </body>
+</html>

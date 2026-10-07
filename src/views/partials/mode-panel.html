@@ -1,0 +1,21 @@
+<section class="mode-panel">
+  <div>
+    <span>ŚRODOWISKO LABORATORYJNE · P7</span>
+    <strong class="mode-big <%= mode %>"
+      ><%= secure ? 'Ochrona włączona' : 'Wersja podatna' %></strong
+    >
+    <% if (secure) { %>
+    <small>Powtórz ataki i sprawdź, czy zabezpieczenia je zatrzymują.</small>
+    <% } else { %>
+    <small>Uruchom kontrolowane ataki i zobacz ich skutki.</small>
+    <% } %>
+  </div>
+  <div class="mode-switch">
+    <button type="button" data-mode="vulnerable" class="<%= secure ? '' : 'active' %>">
+      1. Przed ochroną
+    </button>
+    <button type="button" data-mode="secure" class="<%= secure ? 'active' : '' %>">
+      2. Po zabezpieczeniu
+    </button>
+  </div>
+</section>

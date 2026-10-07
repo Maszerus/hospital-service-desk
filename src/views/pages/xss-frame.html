@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body class="demo-document">
+    <% if (baseline) { %>
+    <span class="eyebrow">STRONA PRZED WSTAWIENIEM OPISU</span>
+    <% } else { %>
+    <span class="eyebrow">STRONA PO ODCZYTANIU OPISU Z SQLITE</span>
+    <% } %>
+    <h2 id="effect"><%= demo.title %></h2>
+    <div class="demo-fields">
+      <div>
+        <span>Priorytet</span>
+        <b id="demo-priority"><%= demo.priority %></b>
+      </div>
+      <div>
+        <span>Opiekun</span>
+        <b id="demo-owner"><%= demo.owner %></b>
+      </div>
+    </div>
+    <button type="button" disabled id="demo-action"><%= demo.action %></button>
+    <p class="demo-note">
+      To kontrolowany widok demonstracyjny. Priorytet i opiekun nie są danymi zgłoszenia w bazie.
+      XSS zmienia DOM, a nie rekord SQL.
+    </p>
+    <div id="payload"><%- description %></div>
+  </body>
+</html>

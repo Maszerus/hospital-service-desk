@@ -1,0 +1,54 @@
+<div class="scenario-guide">
+  <h3>Co dokładnie wyślemy?</h3>
+  <p>
+    <b>Cel:</b>
+    <%= goal %>
+    Najpierw odczytamy profil przez <code>GET /lab/profile-state</code>, a następnie wyślemy
+    poniższe żądanie.
+  </p>
+  <p>
+    <b>Losowe, fikcyjne dane do następnej próby:</b> imię i nazwisko oraz unikalny e-mail w domenie
+    example.test. Poniższy JSON jest dokładnym wejściem; po próbie wygenerujemy kolejne dane.
+  </p>
+  <div class="code-box">
+    <b>Żądanie następnej próby (dane są już wylosowane)</b>
+    <pre id="csrf-request-<%= id %>" data-candidate="<%= JSON.stringify(candidate) %>">
+<%= request %></pre>
+  </div>
+  <% if (id === 'T5') { %>
+  <p>
+    <code>{{csrfToken}}</code> to zmienna Postmana uzupełniana z odpowiedzi
+    <code>GET /lab/test-info</code>. Nie wpisuj dosłownie nawiasów jako tokenu.
+  </p>
+  <% } %>
+  <%- include('../partials/code-block.html', codeExamples.verification) %>
+  <ol class="explained-steps">
+    <li>Cookie sesji identyfikuje zalogowanego użytkownika.</li>
+    <li>
+      W wersji podatnej <code>verify</code> przepuszcza żądanie. Po ochronie porównuje token z
+      tokenem tej sesji.
+    </li>
+    <li>
+      Jeśli zapis jest dopuszczony, serwer wykonuje UPDATE profilu → SELECT zmienionych danych i
+      zatwierdza transakcję. Zmiana pozostaje w SQLite, także po odświeżeniu strony. Przed pierwszą
+      zaakceptowaną próbą zachowujemy profil początkowy do ręcznego przywrócenia.
+    </li>
+    <li>
+      Jeśli kontrola odrzuci żądanie, dostaniesz HTTP 403. Profil odczytujemy ponownie i sprawdzamy,
+      czy pozostał bez zmian.
+    </li>
+  </ol>
+  <p class="expected"
+    ><b
+      >Oczekiwany wynik
+      <%= id %>
+      w tym trybie:</b
+    >
+    <%= expectedResult %></p
+  >
+  <p>
+    <b>Granica demonstracji:</b> ten przycisk sprawdza token w żądaniu z tej samej aplikacji.
+    Formularz na drugim porcie osobno pokazuje żądanie z innego origin. SameSite to osobna kontrola.
+  </p>
+  <a href="/instructions#postman">Odtwórz <%= id %> w Postmanie →</a>
+</div>

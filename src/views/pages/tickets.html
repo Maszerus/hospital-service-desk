@@ -1,0 +1,15 @@
+<%- include('../partials/nav.html') %>
+<%- include('../partials/mode-panel.html') %>
+<%- include('../partials/lab-dashboard.html') %>
+<h1>Zgłoszenia serwisowe</h1>
+<p>
+  Dodaj zgłoszenie i od razu zobacz zapisany opis. W laboratorium ten opis jest kontrolowaną ścieżką
+  Stored XSS.
+</p>
+<% if (saved) { %>
+<div class="notice" role="status">✓ Zgłoszenie zapisane. Znajdziesz je na początku listy.</div>
+<% } %>
+<p><a class="primary-link" href="/tickets/new">+ Nowe zgłoszenie</a></p>
+<% for (const ticket of tickets) { %>
+<%- include('../partials/ticket.html', { ticket }) %>
+<% } %>

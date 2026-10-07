@@ -1,0 +1,34 @@
+<section
+  class="test-card<%= card.unavailable ? ' test-unavailable' : '' %>"
+  id="card-<%= card.id %>"
+>
+  <div class="test-head">
+    <div>
+      <span class="test-id"><%= card.id %></span>
+      <h2><%= card.name %></h2>
+    </div>
+    <% if (card.unavailable) { %>
+    <button
+      type="button"
+      class="run-test"
+      data-test="<%= card.id %>"
+      disabled
+      data-unavailable="true"
+      aria-describedby="unavailable-<%= card.id %>"
+    >
+      <%= card.action %>
+    </button>
+    <% } else { %>
+    <button type="button" class="run-test" data-test="<%= card.id %>"><%= card.action %></button>
+    <% } %>
+  </div>
+  <% if (card.unavailable) { %>
+  <p class="unavailable-reason" id="unavailable-<%= card.id %>"><%= card.reason %></p>
+  <% } %>
+  <details class="test-details">
+    <summary>Szczegóły testu / ataku</summary>
+    <p><%= card.description %></p>
+    <%- include('../' + card.guide.template, card.guide) %>
+  </details>
+  <div class="test-result" aria-live="polite" id="result-<%= card.id %>"></div>
+</section>

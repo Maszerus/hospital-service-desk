@@ -1,0 +1,55 @@
+<div class="scenario-guide">
+  <h3>Co dokładnie sprawdzamy?</h3>
+  <p>
+    <code>GET /lab/test-info</code> odczytuje aktywne nagłówki serwera i konfigurację sesji. Poniżej
+    pojawią się pełne wartości odpowiedzi, a nie same skróty ON/OFF.
+  </p>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Kontrola</th>
+          <th>Znaczenie</th>
+          <th>Oczekiwane po ochronie</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th>CSP</th>
+          <td>Ogranicza źródła skryptów i blokuje kod inline.</td>
+          <td>script-src 'self'; script-src-attr 'none'</td>
+        </tr>
+        <tr>
+          <th>X-Content-Type-Options</th>
+          <td>Zapobiega zgadywaniu typu treści.</td>
+          <td>nosniff</td>
+        </tr>
+        <tr>
+          <th>X-Frame-Options</th>
+          <td>Ogranicza osadzanie strony w ramkach innych origin.</td>
+          <td>SAMEORIGIN</td>
+        </tr>
+        <tr>
+          <th>HttpOnly</th>
+          <td>JavaScript nie może odczytać cookie sesji.</td>
+          <td>true</td>
+        </tr>
+        <tr>
+          <th>SameSite</th>
+          <td>Ogranicza wysyłanie cookie w żądaniach z obcego site.</td>
+          <td>Strict</td>
+        </tr>
+        <tr>
+          <th>Secure</th>
+          <td>Cookie jest wysyłane wyłącznie po HTTPS.</td>
+          <td>true po HTTPS; HTTP nie potwierdza tej kontroli</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="expected">
+    <b>Oczekiwany wynik:</b> HTTP 200. W wersji podatnej brak CSP i SameSite=Lax; po ochronie CSP i
+    SameSite=Strict. HttpOnly pozostaje aktywne w obu wersjach. Flaga Secure wymaga testu HTTPS.
+  </p>
+  <a href="/instructions#https">Jak sprawdzić rzeczywiste Set-Cookie w Postmanie →</a>
+</div>

@@ -1,0 +1,32 @@
+<%- include('../partials/nav.html') %>
+<%- include('../partials/mode-panel.html') %>
+<%- include('../partials/lab-dashboard.html') %>
+<div class="test-center-title">
+  <h1>Testy bezpieczeństwa</h1>
+  <div id="xss-reset-area" hidden>
+    <button type="button" id="reset-xss" class="secondary">Przywróć nagłówek aplikacji</button>
+  </div>
+</div>
+<div class="test-actions">
+  <button type="button" id="run-all">Uruchom wszystkie testy</button>
+  <p id="all-summary" aria-live="polite"></p>
+</div>
+<% for (const card of cards) { %>
+<%- include('../partials/test-card.html', { card }) %>
+<% } %>
+<details class="lab-details">
+  <summary>Profil testowy</summary>
+  <%- include('../partials/profile-panel.html', { state }) %>
+  <p class="muted">
+    Zaakceptowany test CSRF zapisuje nowe dane w profilu. Przywrócenie danych wymaga osobnego
+    kliknięcia.
+  </p>
+</details>
+<details class="lab-details" id="comparison-panel">
+  <summary>Porównanie wyników i raport</summary>
+  <div class="comparison-head">
+    <h2>Przed i po zabezpieczeniu</h2>
+    <button type="button" id="export-report" class="secondary">Pobierz dowody JSON</button>
+  </div>
+  <div id="comparison-results"></div>
+</details>

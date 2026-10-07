@@ -15,6 +15,19 @@ npm start
 
 Otwórz http://localhost:3000. Konto: `student` / `student123`. Po logowaniu otwiera się laboratorium. Serwer nasłuchuje tylko na interfejsie loopback.
 
+## Organizacja kodu
+
+- `src/views/pages/*.html` — HTML poszczególnych stron: logowanie, zgłoszenia, profil, laboratorium i instrukcja.
+- `src/views/layout.html` oraz `src/views/partials/*.html` — wspólny układ i powtarzalne elementy stron.
+- `src/views/guides/*.html` — treść scenariuszy XSS, CSRF i kontroli nagłówków.
+- `public/style.css` — wygląd aplikacji.
+- `app.js` — trasy, sesje, operacje na bazie i przekazywanie danych do widoków.
+- `public/*.js` — interakcje w przeglądarce i obserwacja wyników testów.
+
+Pliki HTML są szablonami EJS renderowanymi przez Express. `<%= wartość %>` wstawia tekst zakodowany przez istniejące `escapeHtml`, a `<%- include(...) %>` dołącza fragment HTML. Surowe wstawianie opisów w demonstracji XSS jest jawnie oznaczone przez `<%- ... %>`; dane przygotowuje wspólna funkcja `renderDescription` w `app.js`, która w trybie secure koduje opis. Szablony nie są udostępniane jako pliki statyczne.
+
+`npm run format` i `npm run format:check` obejmują również szablony HTML.
+
 ## Instrukcja i Postman
 
 Po logowaniu otwórz zakładkę **Instrukcja i Postman**. Zawiera kolejność demonstracji, oczekiwane statusy, pełny opis mechanizmów oraz pliki do pobrania:

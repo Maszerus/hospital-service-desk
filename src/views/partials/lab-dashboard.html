@@ -1,0 +1,18 @@
+<div class="lab-grid">
+  <div>
+    <span>Kodowanie HTML</span>
+    <b><%= secure ? 'Aktywne' : 'Wyłączone' %></b>
+  </div>
+  <div>
+    <span>Token CSRF</span>
+    <b><%= secure ? 'Sprawdzany' : 'Niesprawdzany' %></b>
+  </div>
+  <div>
+    <span>Polityka CSP</span>
+    <b><%= secure ? 'Aktywna' : 'Wyłączona' %></b>
+  </div>
+  <div>
+    <span>Cookie sesji</span>
+    <b>HttpOnly · <%= secure ? 'Strict' : 'Lax' %></b>
+  </div>
+</div>

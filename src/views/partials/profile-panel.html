@@ -1,0 +1,31 @@
+<section class="live-profile" aria-label="Aktualny profil w bazie">
+  <div>
+    <span class="eyebrow">AKTUALNY PROFIL · ODCZYT Z SQLITE</span>
+    <strong id="live-profile-name"><%= state.profile.display_name %></strong>
+    <span id="live-profile-email"><%= state.profile.email %></span>
+    <small id="live-profile-baseline"
+      ><% if (state.initialProfile) { %>Profil sprzed pierwszej próby:
+      <%= state.initialProfile.display_name %>
+      ·
+      <%= state.initialProfile.email %><% } else { %>Nie zachowano jeszcze profilu początkowego.<% } %></small
+    >
+    <p id="profile-change-note">
+      <% if (state.canRestore) { %>Zapis po demonstracji pozostaje w bazie. Przywrócenie danych jest
+      osobną operacją.<% } else { %>Po zaakceptowanym teście zobaczysz tutaj nowe dane. Nic nie
+      zostanie automatycznie cofnięte.<% } %>
+    </p>
+  </div>
+  <div>
+    <% if (state.canRestore) { %>
+    <button type="button" class="secondary" id="restore-profile">
+      Przywróć profil sprzed pierwszej próby
+    </button>
+    <% } else { %>
+    <button type="button" class="secondary" id="restore-profile" disabled>
+      Przywróć profil sprzed pierwszej próby
+    </button>
+    <% } %>
+    <a href="/profile">Otwórz profil testowy →</a>
+    <p id="profile-action-status" role="status"></p>
+  </div>
+</section>

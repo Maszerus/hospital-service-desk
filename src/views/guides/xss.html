@@ -1,0 +1,47 @@
+<div class="scenario-guide">
+  <h3>Co dokładnie uruchomisz?</h3>
+  <p>
+    <b>Źródło danych:</b> poniższy opis wysyłamy w polu <code>description</code> do
+    <code>POST /lab/xss-probe</code>. Serwer zapisuje go w tabeli <code>lab_payloads</code> dla
+    Twojego konta. <code>GET /lab/xss-frame</code> odczytuje ten sam opis i wstawia go do HTML.
+  </p>
+  <%- include('../partials/code-block.html', codeExamples.payload) %>
+  <ol class="explained-steps">
+    <li>
+      <code>&lt;img&gt;</code> jest elementem HTML, a <code>onerror</code> jego obsługą błędu w
+      JavaScript.
+    </li>
+    <li>
+      Obraz <code>/lab/missing-image</code> nie istnieje (HTTP 404). W trybie podatnym przeglądarka
+      wywołuje <code>onerror</code>.
+    </li>
+    <li>
+      <code>classList.add</code> zmienia wygląd; <code>textContent</code> zmienia tytuł, priorytet,
+      opiekuna i tekst przycisku w podglądzie.
+    </li>
+    <li>
+      <code>parent.document</code> sięga do tej strony: zmienia kolor głównego nagłówka i pokazuje
+      komunikat demo. Ramka ma ten sam origin co aplikacja.
+    </li>
+    <li>
+      <code>postMessage</code> wysyła znacznik wykonania do testu. Wynik potwierdzamy także odczytem
+      rzeczywistych elementów DOM.
+    </li>
+  </ol>
+  <div class="detail-grid">
+    <%- include('../partials/code-block.html', codeExamples.renderer) %> <%-
+    include('../partials/code-block.html', codeExamples.protection) %>
+  </div>
+  <p class="expected"
+    ><b
+      >Oczekiwany wynik
+      <%= id %>:</b
+    >
+    <%= expectedResult %></p
+  >
+  <p>
+    <b>Co jest zmieniane?</b> Tylko interfejs przeglądarki (DOM). Baza przechowuje opis z payloadem;
+    skrypt nie zmienia rekordów profilu ani zgłoszeń.
+  </p>
+  <a href="/instructions#postman">Odtwórz T1/T2 w Postmanie i przeglądarce →</a>
+</div>

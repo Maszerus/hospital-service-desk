@@ -1,0 +1,12 @@
+<%- include('../partials/nav.html') %>
+<h1>Nowe zgłoszenie</h1>
+<div class="lab-help">
+  <b>Scenariusz Stored XSS</b>
+  <p>Ręczny payload LAB: <code>&lt;script src=&quot;/xss-demo.js&quot;&gt;&lt;/script&gt;</code></p>
+</div>
+<form method="post">
+  <%- include('../partials/csrf-input.html') %>
+  <label>Tytuł<input name="title" required /></label>
+  <label>Opis<textarea name="description" required></textarea></label>
+  <button>Zapisz</button>
+</form>

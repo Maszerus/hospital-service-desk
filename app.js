@@ -4,6 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const https = require('node:https');
 const express = require('express');
+const ejs = require('ejs');
 const session = require('express-session');
 const helmet = require('helmet');
 
@@ -13,19 +14,17 @@ const auth = require('./src/middleware/auth');
 const { token, verify } = require('./src/security/csrf');
 const { escapeHtml } = require('./src/security/render');
 const xssDemo = require('./src/security/lab-xss');
-const {
-  layout: renderLayout,
-  modePanel,
-  labDashboard,
-  nav,
-  notice,
-} = require('./src/views/layout');
-const { profilePanel } = require('./src/views/profile');
-const { testCards } = require('./src/views/security-tests');
-const { instructions } = require('./src/security/instructions');
+const { testCards } = require('./src/security/scenario-cards');
+const { instructionCommands } = require('./src/security/instructions');
 const { generateProfile } = require('./src/security/lab-profile');
 
 const app = express();
+app.set('views', path.join(__dirname, 'src/views'));
+app.set('view engine', 'html');
+app.engine('html', (file, options, callback) => {
+  ejs.renderFile(file, options, { escape: escapeHtml }, callback);
+});
+
 const port = process.env.PORT || 3000;
 let currentMode =
   (process.env.APP_MODE || 'vulnerable').toLowerCase() === 'secure' ? 'secure' : 'vulnerable';
@@ -72,40 +71,31 @@ function configureSessionCookie(req) {
   req.session.cookie.secure = secure && req.secure;
 }
 
-const layout = (title, body, script) => renderLayout(currentMode, title, body, script);
 const renderDescription = (value) => (currentMode === 'secure' ? escapeHtml(value) : value);
 
-function csrfInput(req) {
-  if (currentMode !== 'secure') return '';
-  return `<input type="hidden" name="csrfToken" value="${token(req)}">`;
+function renderPage(res, page, title, data = {}) {
+  res.render('layout', {
+    page,
+    title,
+    mode: currentMode,
+    secure: currentMode === 'secure',
+    csrfToken: null,
+    scriptPaths: [],
+    ...data,
+  });
 }
 
 app.get('/', (req, res) => res.redirect(req.session.userId ? '/security-tests' : '/login'));
 app.get('/login', (req, res) => {
   if (req.session.userId) return res.redirect('/security-tests');
-  res.send(
-    layout(
-      'Logowanie',
-      `
-        <div class="eyebrow">P7 · BROWSER HARDENING</div>
-        <h1>Wejdź do laboratorium</h1>
-        <p>Przetestuj XSS i CSRF, włącz ochronę i porównaj efekty.</p>
-        <form method="post">
-          <label>Login<input name="username" autocomplete="username" required></label>
-          <label>Hasło<input type="password" name="password" autocomplete="current-password" required></label>
-          <button>Zaloguj</button>
-        </form>
-        <p class="hint">LAB: student / student123</p>
-      `,
-    ),
-  );
+  renderPage(res, 'login', 'Logowanie');
 });
 app.post('/login', (req, res, next) => {
   const user = db
     .prepare('SELECT * FROM users WHERE username=? AND password=?')
     .get(req.body.username, req.body.password);
   if (!user) {
-    return res.status(401).send(layout('Błąd', '<h1>Błędne dane</h1><a href="/login">Wróć</a>'));
+    return renderPage(res.status(401), 'login-error', 'Błąd');
   }
 
   req.session.regenerate((error) => {
@@ -152,52 +142,19 @@ app.get('/tickets', auth, (req, res) => {
        JOIN users ON users.id = tickets.user_id
        ORDER BY tickets.id DESC`,
     )
-    .all();
-  const items = tickets
-    .map(
-      (ticket) => `
-        <article class="ticket">
-          <span class="ticket-number">Zgłoszenie #${ticket.id}</span>
-          <h3>${escapeHtml(ticket.title)}</h3>
-          <small>${escapeHtml(ticket.display_name)}</small>
-          <div class="desc">${renderDescription(ticket.description)}</div>
-        </article>
-      `,
-    )
-    .join('');
-  res.send(
-    layout(
-      'Zgłoszenia',
-      `${nav()}${modePanel(currentMode)}${labDashboard(currentMode)}
-        <h1>Zgłoszenia serwisowe</h1>
-        <p>Dodaj zgłoszenie i od razu zobacz zapisany opis. W laboratorium ten opis jest kontrolowaną ścieżką Stored XSS.</p>
-        ${req.query.saved ? notice('Zgłoszenie zapisane. Znajdziesz je na początku listy.') : ''}
-        <p><a class="primary-link" href="/tickets/new">+ Nowe zgłoszenie</a></p>
-        ${items}
-      `,
-    ),
-  );
+    .all()
+    .map((ticket) => ({
+      ...ticket,
+      description: renderDescription(ticket.description),
+    }));
+
+  renderPage(res, 'tickets', 'Zgłoszenia', { tickets, saved: !!req.query.saved });
 });
-app.get('/tickets/new', auth, (req, res) =>
-  res.send(
-    layout(
-      'Nowe zgłoszenie',
-      `${nav()}
-        <h1>Nowe zgłoszenie</h1>
-        <div class="lab-help">
-          <b>Scenariusz Stored XSS</b>
-          <p>Ręczny payload LAB: <code>&lt;script src=&quot;/xss-demo.js&quot;&gt;&lt;/script&gt;</code></p>
-        </div>
-        <form method="post">
-          ${csrfInput(req)}
-          <label>Tytuł<input name="title" required></label>
-          <label>Opis<textarea name="description" required></textarea></label>
-          <button>Zapisz</button>
-        </form>
-      `,
-    ),
-  ),
-);
+app.get('/tickets/new', auth, (req, res) => {
+  renderPage(res, 'ticket-new', 'Nowe zgłoszenie', {
+    csrfToken: currentMode === 'secure' ? token(req) : null,
+  });
+});
 app.post('/tickets/new', auth, verify, (req, res) => {
   if (!String(req.body.title || '').trim() || !String(req.body.description || '').trim()) {
     return res.status(400).send('Uzupełnij tytuł i opis.');
@@ -212,24 +169,14 @@ app.post('/tickets/new', auth, verify, (req, res) => {
 });
 app.get('/profile', auth, (req, res) => {
   const state = profileState(req);
-  const user = state.profile;
-  res.send(
-    layout(
-      'Profil',
-      `${nav()}${modePanel(currentMode)}${labDashboard(currentMode)}${profilePanel(state)}
-        <h1>Profil testowy</h1>
-        <p>Zmiana tych danych pokazuje skutek żądania CSRF. Zapis formularza to legalna operacja użytkownika.</p>
-        ${req.query.saved ? notice('Dane profilu zostały zapisane.') : ''}
-        <form method="post" action="/profile/update">
-          ${csrfInput(req)}
-          <label>Nazwa<input name="display_name" value="${escapeHtml(user.display_name)}"></label>
-          <label>E-mail<input name="email" value="${escapeHtml(user.email)}"></label>
-          <button>Zapisz</button>
-        </form>
-      `,
-      `<script src="/profile-demo.js"></script>`,
-    ),
-  );
+
+  renderPage(res, 'profile', 'Profil', {
+    state,
+    user: state.profile,
+    saved: !!req.query.saved,
+    csrfToken: currentMode === 'secure' ? token(req) : null,
+    scriptPaths: ['/profile-demo.js'],
+  });
 });
 app.post('/profile/update', auth, verify, (req, res) => {
   db.prepare('UPDATE users SET display_name=?,email=? WHERE id=?').run(
@@ -242,45 +189,18 @@ app.post('/profile/update', auth, verify, (req, res) => {
 
 app.get('/security-tests', auth, (req, res) => {
   token(req);
-  const profile = db.prepare('SELECT display_name FROM users WHERE id=?').get(req.session.userId);
-  const cards = testCards(currentMode, profile);
+  const state = profileState(req);
 
-  res.send(
-    layout(
-      'Security Tests',
-      `${nav()}${modePanel(currentMode)}${labDashboard(currentMode)}
-        <div class="test-center-title">
-          <h1>Testy bezpieczeństwa</h1>
-          <div id="xss-reset-area" hidden>
-            <button type="button" id="reset-xss" class="secondary">Przywróć nagłówek aplikacji</button>
-          </div>
-        </div>
-        <div class="test-actions">
-          <button type="button" id="run-all">Uruchom wszystkie testy</button>
-          <p id="all-summary" aria-live="polite"></p>
-        </div>
-        ${cards}
-        <details class="lab-details">
-          <summary>Profil testowy</summary>
-          ${profilePanel(profileState(req))}
-          <p class="muted">Zaakceptowany test CSRF zapisuje nowe dane w profilu. Przywrócenie danych wymaga osobnego kliknięcia.</p>
-        </details>
-        <details class="lab-details" id="comparison-panel">
-          <summary>Porównanie wyników i raport</summary>
-          <div class="comparison-head">
-            <h2>Przed i po zabezpieczeniu</h2>
-            <button type="button" id="export-report" class="secondary">Pobierz dowody JSON</button>
-          </div>
-          <div id="comparison-results"></div>
-        </details>`,
-      `<script src="/profile-demo.js"></script><script src="/security-tests.js"></script>`,
-    ),
-  );
+  renderPage(res, 'security-tests', 'Security Tests', {
+    state,
+    cards: testCards(currentMode, state.profile),
+    scriptPaths: ['/profile-demo.js', '/security-tests.js'],
+  });
 });
 
-app.get('/instructions', auth, (req, res) =>
-  res.send(layout('Instrukcja', `${nav()}${instructions()}`)),
-);
+app.get('/instructions', auth, (req, res) => {
+  renderPage(res, 'instructions', 'Instrukcja', { commands: instructionCommands() });
+});
 const labDownloads = {
   postman: 'postman/BAI-P7.postman_collection.json',
   'manual-restore': 'postman/BAI-P7-manual-restore.postman_collection.json',
@@ -345,33 +265,11 @@ app.get('/lab/xss-frame', auth, (req, res) => {
     return res.status(404).send('Najpierw zapisz payload testowy: POST /lab/xss-probe.');
   }
 
-  res.type('html').send(
-    `<!doctype html>
-      <html lang="pl">
-        <head>
-          <meta charset="utf-8">
-          <link rel="stylesheet" href="/style.css">
-        </head>
-        <body class="demo-document">
-          <span class="eyebrow">${baseline ? 'STRONA PRZED WSTAWIENIEM OPISU' : 'STRONA PO ODCZYTANIU OPISU Z SQLITE'}</span>
-          <h2 id="effect">${xssDemo.baseline.title}</h2>
-          <div class="demo-fields">
-            <div>
-              <span>Priorytet</span>
-              <b id="demo-priority">${xssDemo.baseline.priority}</b>
-            </div>
-            <div>
-              <span>Opiekun</span>
-              <b id="demo-owner">${xssDemo.baseline.owner}</b>
-            </div>
-          </div>
-          <button type="button" disabled id="demo-action">${xssDemo.baseline.action}</button>
-          <p class="demo-note">To kontrolowany widok demonstracyjny. Priorytet i opiekun nie są danymi zgłoszenia w bazie. XSS zmienia DOM, a nie rekord SQL.</p>
-          <div id="payload">${baseline ? 'Opis bez payloadu.' : renderDescription(record.description)}</div>
-        </body>
-      </html>
-    `,
-  );
+  res.render('pages/xss-frame', {
+    baseline,
+    demo: xssDemo.baseline,
+    description: baseline ? 'Opis bez payloadu.' : renderDescription(record.description),
+  });
 });
 function profileState(req) {
   const profile = db

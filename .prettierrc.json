@@ -3,5 +3,14 @@
   "tabWidth": 2,
   "printWidth": 100,
   "trailingComma": "all",
-  "endOfLine": "lf"
+  "endOfLine": "lf",
+  "plugins": ["prettier-plugin-ejs"],
+  "overrides": [
+    {
+      "files": "src/views/**/*.html",
+      "options": {
+        "htmlWhitespaceSensitivity": "strict"
+      }
+    }
+  ]
 }

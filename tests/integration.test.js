@@ -4,6 +4,7 @@ process.env.DB_PATH = ':memory:';
 process.env.APP_MODE = 'vulnerable';
 const app = require('../app');
 const db = require('../src/database/db');
+const { escapeHtml } = require('../src/security/render');
 test('Stored XSS, CSRF i nagłówki BEFORE/AFTER oraz legalne formularze', async () => {
   const server = app.listen(0, '127.0.0.1');
   await new Promise((r) => server.once('listening', r));
@@ -23,12 +24,54 @@ test('Stored XSS, CSRF i nagłówki BEFORE/AFTER oraz legalne formularze', async
     return r;
   };
   try {
+    const loginPage = await send('/login');
+    assert.equal(loginPage.status, 200);
+    assert.match(await loginPage.text(), /Wejdź do laboratorium/);
+    const loginError = await send('/login', { username: 'student', password: 'invalid' });
+    assert.equal(loginError.status, 401);
+    assert.match(await loginError.text(), /Błędne dane/);
     assert.equal((await send('/lab/test-info')).status, 302);
     assert.equal(
       (await send('/login', { username: 'student', password: 'student123' })).status,
       302,
     );
     const baseline = db.prepare('SELECT display_name,email FROM users WHERE id=1').get();
+    const untrustedText = '<img src=x onerror="alert(1)"> & \'tekst\'';
+    db.prepare('UPDATE users SET display_name=?,email=? WHERE id=1').run(
+      untrustedText,
+      untrustedText,
+    );
+    const escapedProfile = await (await send('/profile')).text();
+    assert.ok(escapedProfile.includes(escapeHtml(untrustedText)));
+    assert.ok(!escapedProfile.includes(untrustedText));
+    db.prepare('UPDATE users SET display_name=?,email=? WHERE id=1').run(
+      baseline.display_name,
+      baseline.email,
+    );
+
+    for (const route of [
+      '/security-tests',
+      '/tickets',
+      '/tickets/new',
+      '/profile',
+      '/instructions',
+    ]) {
+      const page = await send(route);
+      assert.equal(page.status, 200, route);
+      assert.match(await page.text(), /aria-current="page"/, route);
+    }
+    assert.doesNotMatch(await (await send('/tickets/new')).text(), /name="csrfToken"/);
+
+    const ticketDescription = '<script src="/xss-demo.js"></script>';
+    db.prepare('INSERT INTO tickets(user_id,title,description) VALUES(?,?,?)').run(
+      1,
+      untrustedText,
+      ticketDescription,
+    );
+    const vulnerableTickets = await (await send('/tickets')).text();
+    assert.ok(vulnerableTickets.includes(escapeHtml(untrustedText)));
+    assert.ok(vulnerableTickets.includes(ticketDescription));
+
     const spec = await (await send('/lab/xss-info')).json();
     assert.ok(spec.script.includes('parent.document'));
     assert.equal(spec.changes.length, 5);
@@ -78,6 +121,11 @@ test('Stored XSS, CSRF i nagłówki BEFORE/AFTER oraz legalne formularze', async
     const after = await send('/lab/test-info');
     const i = await after.json();
     assert.ok(after.headers.get('content-security-policy'));
+    const secureTickets = await (await send('/tickets')).text();
+    assert.ok(secureTickets.includes(escapeHtml(ticketDescription)));
+    assert.ok(!secureTickets.includes(ticketDescription));
+    const secureTicketForm = await (await send('/tickets/new')).text();
+    assert.ok(secureTicketForm.includes(`name="csrfToken" value="${i.csrfToken}"`));
     const frame = await send('/lab/xss-frame');
     assert.match(await frame.text(), /&lt;img/);
     assert.equal(
