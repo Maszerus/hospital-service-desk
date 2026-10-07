@@ -1,0 +1,986 @@
+{
+  "info": {
+    "name": "BAI P7 — Browser Hardening — BEFORE i AFTER",
+    "description": "Własna aplikacja localhost. Uruchom całość w kolejności: logowanie → BEFORE → AFTER. Postman zapisuje connect.sid w cookie jar. Nie mieszaj localhost z 127.0.0.1. XSS: Postman sprawdza zapis/HTML, a przeglądarka wykonanie JS. HTTP nie potwierdza Secure=true. Szczegółowa instrukcja: /instructions i docs/postman.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "csrfToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "profileBefore",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "xssPayload",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "displayName",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "profileExpected",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Start — logowanie i cookie sesji",
+      "item": [
+        {
+          "name": "01 Zaloguj konto laboratoryjne",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/login",
+            "description": "Oczekiwane 302 i Set-Cookie connect.sid. Automatyczne przekierowania wyłączone dla tego żądania. Cookie jar pozostaw włączony.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"student\",\n  \"password\": \"student123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Logowanie: HTTP 302',()=>pm.response.to.have.status(302));",
+                  "pm.test('Set-Cookie sesji',()=>pm.expect(pm.response.headers.get('Set-Cookie')).to.include('connect.sid='));",
+                  "pm.test('Przekierowanie do laboratorium',()=>pm.expect(pm.response.headers.get('Location')).to.eql('/security-tests'));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 BEFORE — wersja podatna",
+      "description": "Wykonuj żądania w kolejności. Test XSS tutaj sprawdza zapis i HTML; wykonanie JavaScript sprawdź w laboratorium w przeglądarce.",
+      "item": [
+        {
+          "name": "01 Włącz vulnerable",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/mode",
+            "description": "Zmienia globalny tryb procesu. Poprzedni token CSRF zostaje unieważniony.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"vulnerable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "pm.test('Tryb przełączony',()=>pm.expect(pm.response.json().mode).to.eql('vulnerable'));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "02 Odczytaj profil BEFORE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-state",
+            "description": "Zapisuje profil początkowy jako zmienną profileBefore."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('profileBefore',JSON.stringify(j.profile));pm.collectionVariables.set('profileExpected',JSON.stringify(j.profile));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "03 Pobierz świeży token tej sesji",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/test-info",
+            "description": "Po każdej zmianie trybu trzeba pobrać nowy token. Skrypt uzupełnia csrfToken."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Aktywny tryb: vulnerable',()=>pm.expect(j.mode).to.eql('vulnerable'));",
+                  "pm.collectionVariables.set('csrfToken',j.csrfToken);",
+                  "pm.test('Token tej sesji dostępny',()=>pm.expect(j.csrfToken).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "04 T1 — odczytaj dokładny payload i jego instrukcje",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/xss-info",
+            "description": "Odpowiedź zawiera payload, dekodowany script, selektory zmian, aktywne renderowanie i rekord SQLite."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('xssPayload',j.payload);",
+                  "pm.test('Payload zawiera jawny kod onerror',()=>pm.expect(j.payload).to.include('onerror='));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "05 T1 — zapisz ten opis w SQLite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/xss-probe",
+            "description": "Dokładny payload jest widoczny w Body. Serwer odpowiada odczytanym rekordem, nie tylko deklaracją sukcesu.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"<img src=\\\"/lab/missing-image\\\" onerror=\\\"document.body.classList.add('compromised');\\ndocument.getElementById('effect').textContent = 'ATAK XSS: kod z opisu zmienił tę stronę';\\ndocument.getElementById('demo-priority').textContent = 'KRYTYCZNY — zmiana przez XSS';\\ndocument.getElementById('demo-owner').textContent = 'Kontrolowany payload XSS';\\ndocument.getElementById('demo-action').textContent = 'Przycisk zmieniony przez XSS';\\nif (parent !== window) {\\n  const header = parent.document.getElementById('app-header');\\n  const banner = parent.document.getElementById('xss-page-impact');\\n  if (header) header.classList.add('xss-header');\\n  if (banner) {\\n    banner.hidden = false;\\n    banner.textContent = 'DEMO XSS: skrypt zapisany w opisie zmienił nagłówek aplikacji i ten komunikat.';\\n  }\\n}\\nparent.postMessage('XSS_EXECUTED', location.origin);\\\">\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Payload zapisany',()=>pm.expect(j.stored).to.eql(true));",
+                  "pm.test('Odczyt zgodny z payloadem',()=>pm.expect(j.storage.record.description).to.eql(pm.collectionVariables.get('xssPayload')));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "06 T1 — odbierz HTML po odczycie opisu",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/xss-frame",
+            "description": "Sprawdź odpowiedź HTML w Body → Raw. Postman nie jest testem wykonania JavaScript w przeglądarce. Zaloguj się osobno w przeglądarce i uruchom T1/T2, aby zobaczyć rzeczywiste zmiany DOM."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const html=pm.response.text();",
+                  "pm.test('Opis wstawiony jako aktywny HTML',()=>{pm.expect(html).to.include('<img');});"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "07 Wylosuj dane następnej próby",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-candidate",
+            "description": "Generuje nowe fikcyjne imię i nazwisko oraz unikalny e-mail example.test. Nie zmienia profilu. Skrypt ustawia displayName i email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('displayName',j.display_name);",
+                  "pm.collectionVariables.set('email',j.email);",
+                  "pm.test('Fikcyjna domena',()=>pm.expect(j.email).to.match(/@example\\.test$/));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "08 T3 — POST bez tokenu",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/profile-probe",
+            "description": "Oczekiwane HTTP 200, before → observed; zmiana pozostaje w bazie. To potwierdzenie braku walidacji tokenu.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"{{displayName}}\",\n  \"email\": \"{{email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "const sent=JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "pm.test('UPDATE rzeczywiście zmienił dane',()=>pm.expect(j.changed).to.eql(true));",
+                  "pm.test('Zapis pozostaje w bazie',()=>pm.expect(j.persisted).to.eql(true));",
+                  "pm.test('Bez automatycznego restore',()=>pm.expect(j.autoRestored).to.eql(false));",
+                  "pm.test('Zapisane dane zgodne z wylosowanymi',()=>pm.expect(j.observed).to.deep.eql({display_name:sent.display_name,email:sent.email}));",
+                  "pm.collectionVariables.set('profileExpected',JSON.stringify(j.observed));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "09 Wylosuj dane następnej próby",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-candidate",
+            "description": "Generuje nowe fikcyjne imię i nazwisko oraz unikalny e-mail example.test. Nie zmienia profilu. Skrypt ustawia displayName i email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('displayName',j.display_name);",
+                  "pm.collectionVariables.set('email',j.email);",
+                  "pm.test('Fikcyjna domena',()=>pm.expect(j.email).to.match(/@example\\.test$/));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "10 T4 — POST z błędnym tokenem",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/profile-probe",
+            "description": "Oczekiwane HTTP 200 mimo błędnego tokenu.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"{{displayName}}\",\n  \"email\": \"{{email}}\",\n  \"csrfToken\": \"INVALID-TOKEN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "const sent=JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "pm.test('UPDATE rzeczywiście zmienił dane',()=>pm.expect(j.changed).to.eql(true));",
+                  "pm.test('Zapis pozostaje w bazie',()=>pm.expect(j.persisted).to.eql(true));",
+                  "pm.test('Bez automatycznego restore',()=>pm.expect(j.autoRestored).to.eql(false));",
+                  "pm.test('Zapisane dane zgodne z wylosowanymi',()=>pm.expect(j.observed).to.deep.eql({display_name:sent.display_name,email:sent.email}));",
+                  "pm.collectionVariables.set('profileExpected',JSON.stringify(j.observed));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "11 Odczytaj profil AFTER",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-state",
+            "description": "Niezależny odczyt profilu; oczekiwane dane z ostatniego zaakceptowanego zapisu. Żaden test nie przywraca danych automatycznie."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Aktualny profil zgodny z ostatnim zaakceptowanym zapisem',()=>pm.expect(j.profile).to.deep.eql(JSON.parse(pm.collectionVariables.get('profileExpected'))));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "12 T6 — rzeczywiste nagłówki i Set-Cookie",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/test-info",
+            "description": "Sprawdź Headers: Content-Security-Policy, X-Content-Type-Options, X-Frame-Options, Set-Cookie. Secure=true sprawdzamy wyłącznie dla HTTPS w trybie secure."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Aktywny tryb: vulnerable',()=>pm.expect(j.mode).to.eql('vulnerable'));",
+                  "pm.collectionVariables.set('csrfToken',j.csrfToken);",
+                  "pm.test('Token tej sesji dostępny',()=>pm.expect(j.csrfToken).to.be.a('string').and.not.empty);",
+                  "pm.test('CSP: brak',()=>pm.expect(!!pm.response.headers.get('Content-Security-Policy')).to.eql(false));",
+                  "pm.test('SameSite: lax',()=>pm.expect(j.cookie.sameSite).to.eql('lax'));",
+                  "pm.test('HttpOnly konfiguracja',()=>pm.expect(j.cookie.httpOnly).to.eql(true));",
+                  "const setCookie=pm.response.headers.get('Set-Cookie')||'';",
+                  "pm.test('Rzeczywiste Set-Cookie: HttpOnly',()=>pm.expect(setCookie).to.match(/;\\s*HttpOnly/i));",
+                  "pm.test('Rzeczywiste Set-Cookie: SameSite',()=>pm.expect(setCookie).to.match(/SameSite=Lax/i));",
+                  "const https=pm.variables.replaceIn('{{baseUrl}}').startsWith('https:');",
+                  "const expectSecure=false&&https;",
+                  "pm.test('Secure zgodne z trybem i protokołem',()=>pm.expect(j.cookie.secure).to.eql(expectSecure));",
+                  "pm.test('Set-Cookie: rzeczywista flaga Secure',()=>pm.expect(/;\\s*Secure(?:;|$)/i.test(setCookie)).to.eql(expectSecure));",
+                  "",
+                  "if(false&&!https)console.warn('HTTP: test Secure na true nie został wykonany. Powtórz kolekcję na https://localhost:3443.');"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 AFTER — zabezpieczenia i re-test",
+      "description": "Wykonuj żądania w kolejności. Test XSS tutaj sprawdza zapis i HTML; wykonanie JavaScript sprawdź w laboratorium w przeglądarce.",
+      "item": [
+        {
+          "name": "01 Włącz secure",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/mode",
+            "description": "Zmienia globalny tryb procesu. Poprzedni token CSRF zostaje unieważniony.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"secure\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "pm.test('Tryb przełączony',()=>pm.expect(pm.response.json().mode).to.eql('secure'));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "02 Odczytaj profil BEFORE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-state",
+            "description": "Zapisuje profil początkowy jako zmienną profileBefore."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('profileBefore',JSON.stringify(j.profile));pm.collectionVariables.set('profileExpected',JSON.stringify(j.profile));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "03 Pobierz świeży token tej sesji",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/test-info",
+            "description": "Po każdej zmianie trybu trzeba pobrać nowy token. Skrypt uzupełnia csrfToken."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Aktywny tryb: secure',()=>pm.expect(j.mode).to.eql('secure'));",
+                  "pm.collectionVariables.set('csrfToken',j.csrfToken);",
+                  "pm.test('Token tej sesji dostępny',()=>pm.expect(j.csrfToken).to.be.a('string').and.not.empty);"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "04 T2 — odczytaj dokładny payload i jego instrukcje",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/xss-info",
+            "description": "Odpowiedź zawiera payload, dekodowany script, selektory zmian, aktywne renderowanie i rekord SQLite."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('xssPayload',j.payload);",
+                  "pm.test('Payload zawiera jawny kod onerror',()=>pm.expect(j.payload).to.include('onerror='));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "05 T2 — zapisz ten opis w SQLite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/xss-probe",
+            "description": "Dokładny payload jest widoczny w Body. Serwer odpowiada odczytanym rekordem, nie tylko deklaracją sukcesu.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"<img src=\\\"/lab/missing-image\\\" onerror=\\\"document.body.classList.add('compromised');\\ndocument.getElementById('effect').textContent = 'ATAK XSS: kod z opisu zmienił tę stronę';\\ndocument.getElementById('demo-priority').textContent = 'KRYTYCZNY — zmiana przez XSS';\\ndocument.getElementById('demo-owner').textContent = 'Kontrolowany payload XSS';\\ndocument.getElementById('demo-action').textContent = 'Przycisk zmieniony przez XSS';\\nif (parent !== window) {\\n  const header = parent.document.getElementById('app-header');\\n  const banner = parent.document.getElementById('xss-page-impact');\\n  if (header) header.classList.add('xss-header');\\n  if (banner) {\\n    banner.hidden = false;\\n    banner.textContent = 'DEMO XSS: skrypt zapisany w opisie zmienił nagłówek aplikacji i ten komunikat.';\\n  }\\n}\\nparent.postMessage('XSS_EXECUTED', location.origin);\\\">\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Payload zapisany',()=>pm.expect(j.stored).to.eql(true));",
+                  "pm.test('Odczyt zgodny z payloadem',()=>pm.expect(j.storage.record.description).to.eql(pm.collectionVariables.get('xssPayload')));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "06 T2 — odbierz HTML po odczycie opisu",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/xss-frame",
+            "description": "Sprawdź odpowiedź HTML w Body → Raw. Postman nie jest testem wykonania JavaScript w przeglądarce. Zaloguj się osobno w przeglądarce i uruchom T1/T2, aby zobaczyć rzeczywiste zmiany DOM."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const html=pm.response.text();",
+                  "pm.test('Opis zakodowany jako tekst',()=>{pm.expect(html).to.include('&lt;img');pm.expect(html).not.to.include('<img');});"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "07 Wylosuj dane następnej próby",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-candidate",
+            "description": "Generuje nowe fikcyjne imię i nazwisko oraz unikalny e-mail example.test. Nie zmienia profilu. Skrypt ustawia displayName i email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('displayName',j.display_name);",
+                  "pm.collectionVariables.set('email',j.email);",
+                  "pm.test('Fikcyjna domena',()=>pm.expect(j.email).to.match(/@example\\.test$/));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "08 T3 — POST bez tokenu",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/profile-probe",
+            "description": "Oczekiwane HTTP 403, brak zapisu.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"{{displayName}}\",\n  \"email\": \"{{email}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403 — błędny lub brak tokenu',()=>pm.response.to.have.status(403));",
+                  "pm.test('Jawny komunikat odrzucenia',()=>pm.expect(pm.response.text()).to.include('invalid CSRF token'));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "09 Sprawdź brak zmiany po T3",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-state",
+            "description": "Profil musi być identyczny jak przed odrzuconym żądaniem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Aktualny profil zgodny z ostatnim zaakceptowanym zapisem',()=>pm.expect(j.profile).to.deep.eql(JSON.parse(pm.collectionVariables.get('profileExpected'))));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "10 Wylosuj dane następnej próby",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-candidate",
+            "description": "Generuje nowe fikcyjne imię i nazwisko oraz unikalny e-mail example.test. Nie zmienia profilu. Skrypt ustawia displayName i email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('displayName',j.display_name);",
+                  "pm.collectionVariables.set('email',j.email);",
+                  "pm.test('Fikcyjna domena',()=>pm.expect(j.email).to.match(/@example\\.test$/));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "11 T4 — POST z błędnym tokenem",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/profile-probe",
+            "description": "Oczekiwane HTTP 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"{{displayName}}\",\n  \"email\": \"{{email}}\",\n  \"csrfToken\": \"INVALID-TOKEN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403 — błędny lub brak tokenu',()=>pm.response.to.have.status(403));",
+                  "pm.test('Jawny komunikat odrzucenia',()=>pm.expect(pm.response.text()).to.include('invalid CSRF token'));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "12 Sprawdź brak zmiany po T4",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-state",
+            "description": "Profil musi być identyczny jak przed odrzuconym żądaniem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Aktualny profil zgodny z ostatnim zaakceptowanym zapisem',()=>pm.expect(j.profile).to.deep.eql(JSON.parse(pm.collectionVariables.get('profileExpected'))));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "13 Wylosuj dane następnej próby",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-candidate",
+            "description": "Generuje nowe fikcyjne imię i nazwisko oraz unikalny e-mail example.test. Nie zmienia profilu. Skrypt ustawia displayName i email."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.collectionVariables.set('displayName',j.display_name);",
+                  "pm.collectionVariables.set('email',j.email);",
+                  "pm.test('Fikcyjna domena',()=>pm.expect(j.email).to.match(/@example\\.test$/));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "14 T5 — POST z poprawnym tokenem",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/lab/profile-probe",
+            "description": "Skrypt kroku 03 pobrał prawidłowy token po przełączeniu trybu. Oczekiwane 200; nowe dane pozostają zapisane.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"display_name\": \"{{displayName}}\",\n  \"email\": \"{{email}}\",\n  \"csrfToken\": \"{{csrfToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "const sent=JSON.parse(pm.variables.replaceIn(pm.request.body.raw));",
+                  "pm.test('UPDATE rzeczywiście zmienił dane',()=>pm.expect(j.changed).to.eql(true));",
+                  "pm.test('Zapis pozostaje w bazie',()=>pm.expect(j.persisted).to.eql(true));",
+                  "pm.test('Bez automatycznego restore',()=>pm.expect(j.autoRestored).to.eql(false));",
+                  "pm.test('Zapisane dane zgodne z wylosowanymi',()=>pm.expect(j.observed).to.deep.eql({display_name:sent.display_name,email:sent.email}));",
+                  "pm.collectionVariables.set('profileExpected',JSON.stringify(j.observed));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "15 Odczytaj profil AFTER",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/profile-state",
+            "description": "Niezależny odczyt profilu; oczekiwane dane z ostatniego zaakceptowanego zapisu. Żaden test nie przywraca danych automatycznie."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Aktualny profil zgodny z ostatnim zaakceptowanym zapisem',()=>pm.expect(j.profile).to.deep.eql(JSON.parse(pm.collectionVariables.get('profileExpected'))));"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        },
+        {
+          "name": "16 T6 — rzeczywiste nagłówki i Set-Cookie",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/lab/test-info",
+            "description": "Sprawdź Headers: Content-Security-Policy, X-Content-Type-Options, X-Frame-Options, Set-Cookie. Secure=true sprawdzamy wyłącznie dla HTTPS w trybie secure."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+                  "const j=pm.response.json();",
+                  "pm.test('Aktywny tryb: secure',()=>pm.expect(j.mode).to.eql('secure'));",
+                  "pm.collectionVariables.set('csrfToken',j.csrfToken);",
+                  "pm.test('Token tej sesji dostępny',()=>pm.expect(j.csrfToken).to.be.a('string').and.not.empty);",
+                  "pm.test('CSP: aktywne',()=>pm.expect(!!pm.response.headers.get('Content-Security-Policy')).to.eql(true));",
+                  "pm.test('SameSite: strict',()=>pm.expect(j.cookie.sameSite).to.eql('strict'));",
+                  "pm.test('HttpOnly konfiguracja',()=>pm.expect(j.cookie.httpOnly).to.eql(true));",
+                  "const setCookie=pm.response.headers.get('Set-Cookie')||'';",
+                  "pm.test('Rzeczywiste Set-Cookie: HttpOnly',()=>pm.expect(setCookie).to.match(/;\\s*HttpOnly/i));",
+                  "pm.test('Rzeczywiste Set-Cookie: SameSite',()=>pm.expect(setCookie).to.match(/SameSite=Strict/i));",
+                  "const https=pm.variables.replaceIn('{{baseUrl}}').startsWith('https:');",
+                  "const expectSecure=true&&https;",
+                  "pm.test('Secure zgodne z trybem i protokołem',()=>pm.expect(j.cookie.secure).to.eql(expectSecure));",
+                  "pm.test('Set-Cookie: rzeczywista flaga Secure',()=>pm.expect(/;\\s*Secure(?:;|$)/i.test(setCookie)).to.eql(expectSecure));",
+                  "pm.test('nosniff',()=>pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff'));",
+                  "pm.test('SAMEORIGIN',()=>pm.expect(pm.response.headers.get('X-Frame-Options')).to.eql('SAMEORIGIN'));",
+                  "if(true&&!https)console.warn('HTTP: test Secure na true nie został wykonany. Powtórz kolekcję na https://localhost:3443.');"
+                ]
+              }
+            }
+          ],
+          "protocolProfileBehavior": {
+            "followRedirects": false
+          }
+        }
+      ]
+    }
+  ]
+}

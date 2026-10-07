@@ -1,0 +1,11 @@
+{
+  "scope": "Lokalne HTTPS z certyfikatem testowym; tryb secure",
+  "setCookie": "connect.sid=[REDACTED]; Path=/; HttpOnly; Secure; SameSite=Strict",
+  "browserCookie": {
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "Strict"
+  },
+  "test": "T6",
+  "passed": true
+}

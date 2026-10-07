@@ -1,0 +1,142 @@
+{
+  "info": {
+    "name": "BAI P7 — opcjonalne ręczne przywrócenie profilu",
+    "description": "Uruchom WYŁĄCZNIE na własne żądanie, z tym samym cookie jar po demonstracji. Główna kolekcja nigdy nie uruchamia restore. Kopia profilu sprzed pierwszej próby jest przechowywana w SQLite.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "csrfToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "initialProfile",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Odczytaj zachowany profil początkowy",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/lab/profile-state",
+        "description": "Kopia pochodzi z pierwszej zaakceptowanej próby i nie jest nadpisywana przy kolejnych atakach."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "const j=pm.response.json();",
+              "pm.test('Dostępna kopia do przywrócenia',()=>pm.expect(j.initialProfile).not.to.eql(null));",
+              "pm.collectionVariables.set('initialProfile',JSON.stringify(j.initialProfile));"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      }
+    },
+    {
+      "name": "02 Pobierz token do legalnego przywrócenia",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/lab/test-info",
+        "description": "Restore wymaga poprawnego tokenu w obu trybach."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "pm.collectionVariables.set('csrfToken',pm.response.json().csrfToken);"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      }
+    },
+    {
+      "name": "03 Przywróć profil — osobna operacja",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/lab/profile-restore",
+        "description": "Oczekiwane 200 i restored=true. Po przywróceniu kopia jest usuwana.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"csrfToken\": \"{{csrfToken}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "const j=pm.response.json();",
+              "pm.test('Ręczne przywrócenie',()=>pm.expect(j.manual&&j.restored).to.eql(true));",
+              "pm.test('Dane zgodne z kopią',()=>pm.expect(j.restoredState).to.deep.eql(JSON.parse(pm.collectionVariables.get('initialProfile'))));"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      }
+    },
+    {
+      "name": "04 Potwierdź przywrócony profil niezależnym GET",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/lab/profile-state",
+        "description": "Profil powinien być pierwotny, kopia została zużyta."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "const j=pm.response.json();",
+              "pm.test('Aktualny profil zgodny z kopią',()=>pm.expect(j.profile).to.deep.eql(JSON.parse(pm.collectionVariables.get('initialProfile'))));",
+              "pm.test('Kopia wyczyszczona',()=>pm.expect(j.canRestore).to.eql(false));"
+            ]
+          }
+        }
+      ],
+      "protocolProfileBehavior": {
+        "followRedirects": false
+      }
+    }
+  ]
+}

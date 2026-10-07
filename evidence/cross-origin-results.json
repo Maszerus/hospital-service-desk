@@ -1,0 +1,11 @@
+{
+  "scope": "Dwa origin na 127.0.0.1; ten sam site, różne porty",
+  "before": {
+    "accepted": true,
+    "observedName": "CSRF z innego origin"
+  },
+  "after": {
+    "status": 403,
+    "profileUnchanged": true
+  }
+}

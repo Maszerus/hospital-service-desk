@@ -1,0 +1,17 @@
+{
+  "scope": "Newman uruchomił rzeczywistą kolekcję Postmana na własnej bazie in-memory. HTTP i opcjonalnie lokalne HTTPS.",
+  "results": [
+    {
+      "protocol": "http",
+      "requests": 29,
+      "assertions": 88,
+      "failures": 0
+    },
+    {
+      "protocol": "https",
+      "requests": 29,
+      "assertions": 88,
+      "failures": 0
+    }
+  ]
+}
