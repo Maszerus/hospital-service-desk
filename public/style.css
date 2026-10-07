@@ -1,3 +1,8 @@
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
+
 :root {
   font-family:
     Inter,
@@ -341,6 +346,20 @@ tbody th {
 }
 .test-result:empty {
   display: none;
+}
+.test-unavailable {
+  background: #f7f9fb;
+}
+.test-unavailable .test-head {
+  opacity: 0.55;
+}
+.test-unavailable .run-test:disabled {
+  cursor: not-allowed;
+}
+.unavailable-reason {
+  color: #607585;
+  font-size: 13px;
+  margin: 12px 0 0;
 }
 .test-details {
   margin-top: 18px;

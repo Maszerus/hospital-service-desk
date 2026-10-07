@@ -260,86 +260,73 @@ app.post('/profile/update', auth, verify, (req, res) => {
   res.redirect('/profile?saved=1');
 });
 
-const testsForMode = () =>
-  currentMode === 'vulnerable'
-    ? [
-        [
-          'T1',
-          'Stored XSS — atak',
-          'Czy kontrolowany payload zostanie wykonany jako JavaScript?',
-          'WYKONAJ ATAK XSS',
-        ],
-        [
-          'T3',
-          'CSRF bez tokenu — atak',
-          'Czy żądanie zmieniające stan zostanie zaakceptowane bez tokenu?',
-          'WYKONAJ CSRF',
-        ],
-        [
-          'T4',
-          'CSRF z błędnym tokenem — atak',
-          'Czy błędny token mimo wszystko pozwoli zmienić stan?',
-          'WYŚLIJ BŁĘDNY TOKEN',
-        ],
-        [
-          'T6',
-          'Security headers + cookies — baseline',
-          'Jak wygląda rzeczywista konfiguracja nagłówków i sesji w trybie podatnym?',
-          'SPRAWDŹ HARDENING',
-        ],
-      ]
-    : [
-        [
-          'T2',
-          'Stored XSS — RE-TEST',
-          'Czy ten sam payload po remediacji pozostanie danymi?',
-          'POWTÓRZ ATAK XSS',
-        ],
-        [
-          'T3',
-          'CSRF bez tokenu — RE-TEST',
-          'Czy żądanie bez tokenu zostanie odrzucone?',
-          'POWTÓRZ CSRF',
-        ],
-        [
-          'T4',
-          'CSRF z błędnym tokenem — RE-TEST',
-          'Czy niepoprawny token zostanie odrzucony?',
-          'WYŚLIJ BŁĘDNY TOKEN',
-        ],
-        [
-          'T5',
-          'CSRF z poprawnym tokenem',
-          'Czy legalne żądanie z poprawnym tokenem nadal działa?',
-          'WYŚLIJ POPRAWNY TOKEN',
-        ],
-        [
-          'T6',
-          'CSP + nagłówki + cookies — RE-TEST',
-          'Czy mechanizmy hardeningu są rzeczywiście aktywne?',
-          'SPRAWDŹ HARDENING',
-        ],
-      ];
+const securityTests = [
+  {
+    id: 'T1',
+    name: 'Stored XSS — atak',
+    description: 'Czy kontrolowany payload zostanie wykonany jako JavaScript?',
+    action: 'Wykonaj atak',
+    mode: 'vulnerable',
+  },
+  {
+    id: 'T2',
+    name: 'Stored XSS — test ochrony',
+    description: 'Czy ochrona zatrzyma wykonanie tego samego payloadu XSS?',
+    action: 'Wykonaj test',
+    mode: 'secure',
+  },
+  {
+    id: 'T3',
+    name: 'CSRF bez tokenu — atak',
+    description: 'Czy serwer zaakceptuje zmianę profilu bez tokenu CSRF?',
+    action: 'Wykonaj atak',
+  },
+  {
+    id: 'T4',
+    name: 'CSRF z błędnym tokenem — atak',
+    description: 'Czy serwer zaakceptuje zmianę profilu z błędnym tokenem CSRF?',
+    action: 'Wykonaj atak',
+  },
+  {
+    id: 'T5',
+    name: 'CSRF z poprawnym tokenem — test',
+    description: 'Czy legalne żądanie z poprawnym tokenem pozwala zapisać profil?',
+    action: 'Wykonaj test',
+  },
+  {
+    id: 'T6',
+    name: 'Nagłówki bezpieczeństwa i cookies — test',
+    description: 'Jakie nagłówki bezpieczeństwa i ustawienia sesji są aktywne?',
+    action: 'Wykonaj test',
+  },
+];
+
 app.get('/security-tests', auth, (req, res) => {
   token(req);
   const profile = db.prepare('SELECT display_name FROM users WHERE id=?').get(req.session.userId);
-  const cards = testsForMode()
-    .map(([id, name, description, button]) => {
-      const action = ['T1', 'T2', 'T3', 'T4'].includes(id) ? 'Wykonaj atak' : button;
+  const cards = securityTests
+    .map(({ id, name, description, action, mode }) => {
+      const unavailable = mode && mode !== currentMode;
+      const reason = unavailable
+        ? mode === 'secure'
+          ? 'Włącz ochronę, aby wykonać ten test.'
+          : 'Wyłącz ochronę, aby wykonać ten atak.'
+        : '';
 
       return `
-        <section class="test-card" id="card-${id}">
+        <section class="test-card${unavailable ? ' test-unavailable' : ''}" id="card-${id}">
           <div class="test-head">
             <div>
               <span class="test-id">${id}</span>
               <h2>${name}</h2>
             </div>
-            <button type="button" class="run-test" data-test="${id}">${action}</button>
+            <button type="button" class="run-test" data-test="${id}" ${unavailable ? `disabled data-unavailable="true" aria-describedby="unavailable-${id}"` : ''}>${action}</button>
           </div>
+          ${unavailable ? `<p class="unavailable-reason" id="unavailable-${id}">${reason}</p>` : ''}
           <details class="test-details">
             <summary>Szczegóły testu / ataku</summary>
             <p>${description}</p>
-            ${testGuide(id, currentMode, generateProfile(profile))}
+            ${testGuide(id, mode || currentMode, generateProfile(profile))}
           </details>
           <div class="test-result" aria-live="polite" id="result-${id}"></div>
         </section>

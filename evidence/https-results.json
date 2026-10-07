@@ -1,6 +1,6 @@
 {
   "scope": "Lokalne HTTPS z certyfikatem testowym; tryb secure",
-  "setCookie": "connect.sid=[REDACTED]; Path=/; Expires=Fri, 06 Nov 2026 11:39:36 GMT; HttpOnly; Secure; SameSite=Strict",
+  "setCookie": "connect.sid=[REDACTED]; Path=/; Expires=Fri, 06 Nov 2026 11:45:57 GMT; HttpOnly; Secure; SameSite=Strict",
   "browserCookie": {
     "secure": true,
     "httpOnly": true,

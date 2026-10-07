@@ -56,6 +56,9 @@ const db = require('../src/database/db');
     await attackDetails.locator('summary').click();
     assert.equal(await page.locator('#card-T1 .scenario-guide').isVisible(), false);
     assert.equal(await page.locator('#result-T1').isVisible(), false);
+    assert.equal(await page.locator('.test-card').count(), 6);
+    assert.equal(await page.locator('[data-test=T2]').isDisabled(), true);
+    assert.equal(await page.locator('[data-test=T5]').isEnabled(), true);
     const original = db.prepare('SELECT display_name,email FROM users WHERE id=1').get();
     db.prepare('INSERT INTO tickets(user_id,title,description) VALUES(?,?,?)').run(
       1,
@@ -67,8 +70,10 @@ const db = require('../src/database/db');
     await page.goto(base + '/security-tests');
     await page.locator('#run-all').click();
     await page.waitForFunction(() =>
-      document.querySelector('#all-summary').textContent.startsWith('4/4'),
+      document.querySelector('#all-summary').textContent.startsWith('5/5'),
     );
+    assert.equal(await page.locator('[data-test=T2]').isDisabled(), true);
+    assert.equal(await page.locator('#result-T2').isVisible(), false);
     const ticketsPage = await context.newPage();
     await ticketsPage.goto(base + '/tickets');
     assert.equal(await ticketsPage.locator('#xss-proof').count(), 0);
@@ -140,10 +145,15 @@ const db = require('../src/database/db');
     await page.goto(base + '/security-tests');
     await page.locator('#app-header .mode').click();
     await page.waitForLoadState('networkidle');
+    assert.equal(await page.locator('.test-card').count(), 6);
+    assert.equal(await page.locator('[data-test=T1]').isDisabled(), true);
+    assert.equal(await page.locator('[data-test=T2]').isEnabled(), true);
     await page.locator('#run-all').click();
     await page.waitForFunction(() =>
       document.querySelector('#all-summary').textContent.startsWith('5/5'),
     );
+    assert.equal(await page.locator('[data-test=T1]').isDisabled(), true);
+    assert.equal(await page.locator('#result-T1').isVisible(), false);
     assert.equal(await page.frameLocator('[data-frame=after]').locator('#payload img').count(), 0);
     assert.equal(
       await page.locator('#app-header').evaluate((el) => el.classList.contains('xss-header')),
@@ -286,7 +296,7 @@ const db = require('../src/database/db');
     await page.goto(base + '/security-tests');
     await page.waitForURL('**/login');
     console.log(
-      'BEFORE 4/4; AFTER 5/5; cross-origin CSRF: zmiana → 403; losowe dane i trwały zapis OK; ręczny restore OK; eksport JSON i mobile OK; 0 błędów JS',
+      'BEFORE 5/5; AFTER 5/5; lista T1–T6 i nieaktywne testy OK; cross-origin CSRF: zmiana → 403; losowe dane i trwały zapis OK; ręczny restore OK; eksport JSON i mobile OK; 0 błędów JS',
     );
   } finally {
     if (browser) await browser.close();

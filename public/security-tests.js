@@ -399,6 +399,7 @@ function lock(value) {
       (button) =>
         (button.disabled =
           value ||
+          button.dataset.unavailable === 'true' ||
           (button.id === 'restore-profile' &&
             !$('#live-profile-baseline').textContent.startsWith('Profil sprzed'))),
     );
@@ -433,7 +434,7 @@ async function run(id) {
 }
 document.querySelectorAll('.run-test').forEach((button) =>
   button.addEventListener('click', async () => {
-    if (busy) return;
+    if (busy || button.dataset.unavailable === 'true') return;
     lock(true);
     try {
       await run(button.dataset.test);
@@ -446,7 +447,9 @@ document.querySelectorAll('.run-test').forEach((button) =>
 $('#run-all').addEventListener('click', async () => {
   if (busy) return;
   lock(true);
-  const ids = [...document.querySelectorAll('.run-test')].map((button) => button.dataset.test);
+  const ids = [...document.querySelectorAll('.run-test:not([data-unavailable])')].map(
+    (button) => button.dataset.test,
+  );
   let passed = 0;
   try {
     for (const [index, id] of ids.entries()) {
