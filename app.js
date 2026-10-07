@@ -336,7 +336,7 @@ app.get('/security-tests', auth, (req, res) => {
       'Security Tests',
       `${nav()}${modePanel()}
         <div class="test-center-title">
-          <h1>Testy bezpieczeństwa!!!</h1>
+          <h1>Testy bezpieczeństwa</h1>
           <div id="xss-reset-area" hidden>
             <button type="button" id="reset-xss" class="secondary">Przywróć nagłówek aplikacji</button>
           </div>
