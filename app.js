@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const helmet = require('helmet');
 const db = require('./src/database/db');
+const { SessionStore, SESSION_DURATION } = require('./src/database/session-store');
 const auth = require('./src/middleware/auth');
 const { token, verify } = require('./src/security/csrf');
 const { escapeHtml } = require('./src/security/render');
@@ -40,10 +41,11 @@ app.use(express.static('public'));
 app.use(
   session({
     secret: process.env.SESSION_SECRET || 'local-lab-secret',
+    store: new SessionStore(db),
     resave: false,
     saveUninitialized: false,
     rolling: true,
-    cookie: { httpOnly: true, sameSite: 'lax', secure: false },
+    cookie: { httpOnly: true, sameSite: 'lax', secure: false, maxAge: SESSION_DURATION },
   }),
 );
 app.use((req, res, next) => {
@@ -121,18 +123,19 @@ const layout = (title, body, script = '') => {
 <header id="app-header">
 <a href="/security-tests" id="app-brand">
 <span class="brand-mark">H+</span> Hospital Service Desk</a>
-<span class="mode ${currentMode}">${currentMode === 'secure' ? 'Ochrona aktywna' : 'Laboratorium · wersja podatna'}</span>
+<button type="button" class="mode ${currentMode}" data-mode="${currentMode === 'secure' ? 'vulnerable' : 'secure'}" aria-label="${currentMode === 'secure' ? 'Wyłącz ochronę' : 'Włącz ochronę'}" title="${currentMode === 'secure' ? 'Kliknij, aby wyłączyć ochronę' : 'Kliknij, aby włączyć ochronę'}">${currentMode === 'secure' ? 'Ochrona aktywna' : 'Wersja podatna'}</button>
 </header>
 <aside id="xss-page-impact" class="page-impact" role="status" hidden>
 </aside>
-<main>${body}</main>${script}</body>
+<main>${body}</main><script src="/remember-login.js"></script><script src="/mode-switch.js"></script>${script}</body>
 </html>`;
 };
 const renderDescription = (value) => (currentMode === 'secure' ? escapeHtml(value) : value);
 const notice = (text) => `<div class="notice" role="status">✓ ${text}</div>`;
 
 app.get('/', (req, res) => res.redirect(req.session.userId ? '/security-tests' : '/login'));
-app.get('/login', (req, res) =>
+app.get('/login', (req, res) => {
+  if (req.session.userId) return res.redirect('/security-tests');
   res.send(
     layout(
       'Logowanie',
@@ -148,18 +151,32 @@ app.get('/login', (req, res) =>
 </form>
 <p class="hint">LAB: student / student123</p>`,
     ),
-  ),
-);
-app.post('/login', (req, res) => {
+  );
+});
+app.post('/login', (req, res, next) => {
   const u = db
     .prepare('SELECT * FROM users WHERE username=? AND password=?')
     .get(req.body.username, req.body.password);
   if (!u)
     return res.status(401).send(layout('Błąd', '<h1>Błędne dane</h1><a href="/login">Wróć</a>'));
-  req.session.userId = u.id;
-  res.redirect('/security-tests');
+  req.session.regenerate((error) => {
+    if (error) return next(error);
+    req.session.userId = u.id;
+    req.session.cookie.sameSite = currentMode === 'secure' ? 'strict' : 'lax';
+    req.session.cookie.secure = currentMode === 'secure' && req.secure;
+    req.session.save((saveError) => {
+      if (saveError) return next(saveError);
+      res.redirect('/security-tests');
+    });
+  });
 });
-app.post('/logout', (req, res) => req.session.destroy(() => res.redirect('/login')));
+app.post('/logout', (req, res, next) => {
+  req.session.destroy((error) => {
+    if (error) return next(error);
+    res.clearCookie('connect.sid');
+    res.redirect('/login');
+  });
+});
 app.post('/lab/mode', auth, (req, res) => {
   if (
     !req.is('application/json') ||
@@ -195,7 +212,6 @@ app.get('/tickets', auth, (req, res) => {
 <p>Dodaj zgłoszenie i od razu zobacz zapisany opis. W laboratorium ten opis jest kontrolowaną ścieżką Stored XSS.</p>${req.query.saved ? notice('Zgłoszenie zapisane. Znajdziesz je na początku listy.') : ''}<p>
 <a class="primary-link" href="/tickets/new">+ Nowe zgłoszenie</a>
 </p>${items}`,
-      `<script src="/mode-switch.js"></script>`,
     ),
   );
 });
@@ -231,7 +247,7 @@ app.get('/profile', auth, (req, res) => {
 </label>
 <button>Zapisz</button>
 </form>`,
-      `<script src="/mode-switch.js"></script><script src="/profile-demo.js"></script>`,
+      `<script src="/profile-demo.js"></script>`,
     ),
   );
 });
@@ -334,7 +350,7 @@ app.get('/security-tests', auth, (req, res) => {
   res.send(
     layout(
       'Security Tests',
-      `${nav()}${modePanel()}
+      `${nav()}${modePanel()}${labDashboard()}
         <div class="test-center-title">
           <h1>Testy bezpieczeństwa</h1>
           <div id="xss-reset-area" hidden>
@@ -347,8 +363,8 @@ app.get('/security-tests', auth, (req, res) => {
         </div>
         ${cards}
         <details class="lab-details">
-          <summary>Stan zabezpieczeń i profil testowy</summary>
-          ${labDashboard()}${profilePanel(req)}
+          <summary>Profil testowy</summary>
+          ${profilePanel(req)}
           <p class="muted">Zaakceptowany test CSRF zapisuje nowe dane w profilu. Przywrócenie danych wymaga osobnego kliknięcia.</p>
         </details>
         <details class="lab-details" id="comparison-panel">
@@ -359,7 +375,7 @@ app.get('/security-tests', auth, (req, res) => {
           </div>
           <div id="comparison-results"></div>
         </details>`,
-      `<script src="/mode-switch.js"></script><script src="/profile-demo.js"></script><script src="/security-tests.js"></script>`,
+      `<script src="/profile-demo.js"></script><script src="/security-tests.js"></script>`,
     ),
   );
 });

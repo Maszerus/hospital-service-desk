@@ -135,6 +135,11 @@ test('Stored XSS, CSRF i nagłówki BEFORE/AFTER oraz legalne formularze', async
       302,
     );
     assert.match(await (await send('/profile?saved=1')).text(), /Dane profilu zostały zapisane/);
+    const authenticatedCookie = cookie;
+    assert.equal((await send('/logout', {})).status, 302);
+    cookie = authenticatedCookie;
+    assert.equal((await send('/security-tests')).status, 302);
+    assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sessions').get().count, 0);
   } finally {
     await new Promise((r) => server.close(r));
     db.close();

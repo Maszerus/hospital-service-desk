@@ -35,6 +35,19 @@ const db = require('../src/database/db');
     await page.locator('[name=password]').fill('student123');
     await page.getByRole('button', { name: 'Zaloguj' }).click();
     await page.waitForURL('**/security-tests');
+    assert.equal(await page.evaluate(() => localStorage.getItem('hsd-username')), 'student');
+    await page.reload();
+    assert.ok(page.url().endsWith('/security-tests'));
+    const savedCookies = await context.cookies();
+    assert.ok(
+      savedCookies.find((cookie) => cookie.name === 'connect.sid').expires > Date.now() / 1000,
+    );
+    const reopenedContext = await browser.newContext();
+    await reopenedContext.addCookies(savedCookies);
+    const reopenedPage = await reopenedContext.newPage();
+    await reopenedPage.goto(base + '/login');
+    await reopenedPage.waitForURL('**/security-tests');
+    await reopenedContext.close();
     const attackDetails = page.locator('#card-T1 .test-details');
     assert.equal(await attackDetails.evaluate((element) => element.open), false);
     assert.equal(await page.locator('#card-T1 .scenario-guide').isVisible(), false);
@@ -44,10 +57,22 @@ const db = require('../src/database/db');
     assert.equal(await page.locator('#card-T1 .scenario-guide').isVisible(), false);
     assert.equal(await page.locator('#result-T1').isVisible(), false);
     const original = db.prepare('SELECT display_name,email FROM users WHERE id=1').get();
+    db.prepare('INSERT INTO tickets(user_id,title,description) VALUES(?,?,?)').run(
+      1,
+      'Demonstracja Stored XSS',
+      '<script src="/xss-demo.js"></script>',
+    );
+    await page.goto(base + '/tickets');
+    assert.equal(await page.locator('#xss-proof').count(), 0);
+    await page.goto(base + '/security-tests');
     await page.locator('#run-all').click();
     await page.waitForFunction(() =>
       document.querySelector('#all-summary').textContent.startsWith('4/4'),
     );
+    const ticketsPage = await context.newPage();
+    await ticketsPage.goto(base + '/tickets');
+    assert.equal(await ticketsPage.locator('#xss-proof').count(), 0);
+    await ticketsPage.close();
     assert.match(
       await page.frameLocator('[data-frame=after]').locator('#effect').textContent(),
       /ATAK XSS/,
@@ -110,7 +135,10 @@ const db = require('../src/database/db');
       baseline.display_name,
       baseline.email,
     );
-    await page.locator('[data-mode=secure]').click();
+    await page.goto(base + '/tickets');
+    assert.equal(await page.locator('#xss-proof').isVisible(), true);
+    await page.goto(base + '/security-tests');
+    await page.locator('#app-header .mode').click();
     await page.waitForLoadState('networkidle');
     await page.locator('#run-all').click();
     await page.waitForFunction(() =>
@@ -189,6 +217,13 @@ const db = require('../src/database/db');
     const instructionsResponse = await context.request.get(base + '/instructions');
     assert.equal(instructionsResponse.status(), 200);
     assert.match(await instructionsResponse.text(), /Postman/);
+    await page.goto(base + '/instructions');
+    await page.locator('#app-header .mode').click();
+    await page.waitForFunction(() => document.body.dataset.labMode === 'vulnerable');
+    assert.equal(await page.locator('#app-header .mode').textContent(), 'Wersja podatna');
+    await page.locator('#app-header .mode').click();
+    await page.waitForFunction(() => document.body.dataset.labMode === 'secure');
+    assert.equal(await page.locator('#app-header .mode').textContent(), 'Ochrona aktywna');
     const downloadedCollection = await context.request.get(base + '/lab/download/postman');
     assert.equal(downloadedCollection.status(), 200);
     assert.ok((await downloadedCollection.json()).item.length > 0);
@@ -245,6 +280,11 @@ const db = require('../src/database/db');
       );
       console.log('HTTPS: Secure, HttpOnly i SameSite=Strict potwierdzone w przeglądarce');
     } else console.log('HTTPS pominięte: najpierw npm run https:cert');
+    await page.locator('form[action="/logout"] button').click();
+    await page.waitForURL('**/login');
+    assert.equal(await page.evaluate(() => localStorage.getItem('hsd-username')), null);
+    await page.goto(base + '/security-tests');
+    await page.waitForURL('**/login');
     console.log(
       'BEFORE 4/4; AFTER 5/5; cross-origin CSRF: zmiana → 403; losowe dane i trwały zapis OK; ręczny restore OK; eksport JSON i mobile OK; 0 błędów JS',
     );

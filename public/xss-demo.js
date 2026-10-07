@@ -1,7 +1,11 @@
 (() => {
+  try {
+    const evidence = JSON.parse(sessionStorage.getItem('hsd-evidence') || '{}');
+    if (!evidence.vulnerable?.XSS?.javascriptExecuted) return;
+  } catch {
+    return;
+  }
   if (document.getElementById('xss-proof')) return;
-  const brand = document.getElementById('app-brand');
-  if (brand) brand.textContent = '⚠️ HOSPITAL SERVICE DESK — XSS COMPROMISED';
   const panel = document.createElement('section');
   panel.id = 'xss-proof';
   panel.className = 'xss-proof';
